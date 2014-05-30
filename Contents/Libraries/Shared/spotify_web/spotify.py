@@ -12,7 +12,14 @@ import time
 from random import randint
 import uuid
 
+from SocketServer import ThreadingMixIn
+from BaseHTTPServer import HTTPServer
+from SimpleHTTPServer import SimpleHTTPRequestHandler
+from selenium import webdriver
+from xvfbwrapper import Xvfb
+
 import requests
+import os, time
 from ws4py.client.threadedclient import WebSocketClient
 
 from proto import mercury_pb2, metadata_pb2, playlist4changes_pb2,\
@@ -42,6 +49,15 @@ var main = {
 
 IMAGE_HOST = "d3rt1990lpmkn.cloudfront.net"
 
+class RequestHandler(SimpleHTTPRequestHandler):
+  def translate_path(self, path):
+    return os.path.dirname(os.path.realpath(__file__)) + "/static" + path
+
+class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
+    pass
+
+def serve_on_port(server):
+    server.serve_forever()
 
 class Logging():
     log_level = 1
@@ -205,9 +221,9 @@ class SpotifyUtil():
             return False
 
 class SpotifyAPI():
-    def __init__(self, login_callback_func=False, log_level=1):
-        Logging.log_level = log_level
 
+    def __init__(self, login_callback_func=False, log_level=1, webserver_port=5000):
+        Logging.log_level = log_level
         self.auth_server       = "play.spotify.com"
         self.login_callback    = login_callback_func
         self.disconnecting     = False
@@ -219,7 +235,28 @@ class SpotifyAPI():
         self.connecting_marker = Semaphore(1)
         self.shutdown_marker   = Semaphore(1)
         self.disconnect_marker = Semaphore(1)
+
+        # Web server initialization
+        self.root_path         = os.path.dirname(os.path.realpath(__file__))
+        self.webserver_port    = webserver_port
+        self.webserver         = None
+        Logging.debug("App root  path: %s" % self.root_path)
+        Logging.debug("Webserver port: %s" % str(self.webserver_port))
+        self.start_webserver()
+
         self.start()
+
+    def start_webserver(self):
+        if self.webserver:
+            Logging.debug("Web server was running, nothing to do!")
+            return
+        
+        Logging.debug("Initializing web server at http://localhost:" + str(self.webserver_port))
+        try:
+            self.webserver = ThreadingHTTPServer(("localhost", self.webserver_port), RequestHandler)
+            Thread(target=serve_on_port, args=[self.webserver]).start()
+        except:
+            pass
 
     def start(self):
         self.logged_in_marker = Event()
@@ -1007,20 +1044,41 @@ class SpotifyAPI():
         Logging.debug("Got ack for message reply")
 
     def send_pong(self, ping):
-        rest_ping = ping.replace(" ","-")
-        pong = "undefined 0"
-        Logging.debug("Obtaining pong for ping [%s]" % rest_ping)
-        try:            
-            r = requests.get("http://ping-pong.spotify.nodestuff.net/%s" % rest_ping)
-            if r.status_code == 200:
-                result = r.json()
-                if result['status'] == 100:
-                    pong = result['pong'].replace("-"," ")
+        try:
+            Logging.debug("Obtaining pong for ping [%s]" % ping)
+            pong = 'undefined'
             
-            Logging.debug('received flash ping %s, sending pong: %s' % (ping, pong))
-            return self.send_command('sp/pong_flash2', [pong])
+            Logging.debug("Creating virtual display")
+            vdisplay = Xvfb()
+            try:
+                vdisplay.start()
+                
+                phatomjs_path = self.root_path + "/../phantomjs/phantomjs"
+                Logging.debug("Creating selenium with phatomjs webdriver at " + phatomjs_path)
+                browser = webdriver.PhantomJS(executable_path=phatomjs_path, service_log_path="/dev/null")
+                try:                
+                    Logging.debug("Browse page to get pong value")                    
+                    browser.get('http://localhost:%s/page.html' % str(self.webserver_port))
+                    browser_pong = browser.find_element_by_id('pong')
+                    while not browser_pong:
+                        time.sleep(0.05)            
+                        browser_pong = browser.find_element_by_id('pong')
+
+                    if browser_pong:
+                        Logging.debug("YEAH! Pong element found!!!! Calculating value...")
+                        browser.execute_script("document.getElementById('pong').value = document.getElementById('player').sp_run('%s')" % ping)
+                        pong = browser_pong.get_attribute('value')
+                    else:
+                        Logging.debug("Pong element not found ?!?!?! Sorry spotify won't work, can't login")
+                    
+                    Logging.debug('received ping %s, sending pong: %s' % (ping, pong))
+                    return self.send_command('sp/pong_flash2', [pong])
+                finally:
+                    browser.quit()
+            finally:
+                vdisplay.stop()
         except Exception, e:
-            Logging.debug("There was a problem while obtaining pong. Message: " + str(e))
+            Logging.debug("There was a problem while logging in. Message: " + str(e))
             return False
 
     def handle_message(self, msg):
@@ -1125,7 +1183,7 @@ class SpotifyAPI():
     def set_log_level(self, level):
         Logging.log_level = level
 
-    def shutdown(self):
+    def shutdown(self, isRestart=False):
         can_shutdown = self.shutdown_marker.acquire(blocking=False)
         try:
             # If there is a shutdown in process, just wait until it finishes, but don't raise another one
@@ -1135,6 +1193,10 @@ class SpotifyAPI():
                 self.stop_heartbeat = True
                 self.heartbeat_marker.set()
                 self.disconnect()
+
+                if not isRestart and self.webserver:
+                    self.webserver.shutdown()
+                    self.webserver = None
         finally:
             self.shutdown_marker.release()
 
@@ -1147,7 +1209,7 @@ class SpotifyAPI():
                 self.disconnecting = True
                 try:
                     Logging.debug("Disconnecting...")
-                    self.shutdown()
+                    self.shutdown(isRestart=True)
                    
                     Logging.debug("Restarting...")
                     self.start()

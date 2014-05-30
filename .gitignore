@@ -1,1 +1,3 @@
 *.pyc
+Contents/Libraries/Shared/spotify_web/test.py
+ghostdriver.log
