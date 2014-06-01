@@ -1,27 +1,31 @@
 from client import SpotifyClient
 from routing import function_path, route_path
-from utils import localized_format, authenticated, ViewMode, Track
+from utils import localized_format, authenticated, ViewMode, Track, TrackMetadata, check_restart
 
 from cachecontrol import CacheControl
 from spotify_web.friendly import SpotifyArtist, SpotifyAlbum, SpotifyTrack
-from threading import Lock
+from threading import Lock, Event
 
 import locale
 import requests
 import urllib
+import time
 
 class SpotifyPlugin(object):
     def __init__(self):
         self.client = None
         self.server = None
+        self.restart_lock = Lock()
+        self.play_lock = Lock()
+        self.restart_marker = Event()
+        self.current_track = None
+        self.play_count = 0
+
         self.start()
 
         self.session = requests.session()
         self.session_cached = CacheControl(self.session)
 
-        self.current_track = None
-
-        self.track_lock = Lock()
 
     @property
     def username(self):
@@ -35,9 +39,13 @@ class SpotifyPlugin(object):
     def region(self):
         return Prefs["region"]
 
+    def preventive_restart(self):
+        with self.restart_lock:
+            self.start()
+
+    @check_restart
     def preferences_updated(self):
         """ Called when the user updates the plugin preferences"""
-
         # Trigger a client restart
         self.start()
 
@@ -45,20 +53,23 @@ class SpotifyPlugin(object):
         """ Start the Spotify client and HTTP server """
         if not self.username or not self.password:
             Log("Username or password not set: not logging in")
-            return
+            return False
+        
+        self.restart_marker.clear()
+        self.current_track = None
+        self.play_count = 0
 
-        # If we have a client, the is a restart
+        result = False
         if self.client:            
-            self.client.restart(self.username, self.password, self.region)
-            if self.track_lock:
-                try:
-                    self.track_lock.release()
-                except: 
-                    pass
+            result = self.client.restart(self.username, self.password, self.region)
         else:
             self.client = SpotifyClient(self.username, self.password, self.region)
+            result = True
+        
+        self.restart_marker.set()
+        return result
 
-    @authenticated
+    @check_restart
     def play(self, uri):
         """ Play a spotify track: redirect the user to the actual stream """
         Log('play(%s)' % repr(uri))
@@ -66,97 +77,115 @@ class SpotifyPlugin(object):
         if not uri:
             Log("Play track callback invoked with NULL URI")
             return
+        
+        # Process play request one by one to avoid errors
+        with self.play_lock:
 
-        if self.current_track:
-            # Send stop event for previous track
-            self.client.spotify.api.send_track_event(
-                self.current_track.track.getID(),
-                'stop',
-                self.current_track.track.getDuration()
-            )
+            track_url = self.get_track_url(uri)
+            
+            # If first request failed, trigger re-connection to spotify
+            retry_num = 0 
+            while not track_url and retry_num < 3:
+                Log.Info('First get_track_url failed')
+                
+                with self.restart_lock:
+                    Log.Debug('Acquired restart_lock in play for track: %s' % uri)
+                    
+                    track_url = self.get_track_url(uri)
+                    if not track_url:
+                        Log.Info('get_track_url failed again, re-connecting to spotify...')
+                        time.sleep(retry_num*0.5) # Wait some time based on number of failures
+                        self.start()
+                        track_url = self.get_track_url(uri)
+                        retry_num = retry_num + 1
+                    
+                    Log.Debug('Released restart_lock in play, for track: %s' % uri)
 
-        track_url = self.get_track_url(uri)
-        if track_url == False:
-            Log("Play track couldn't be obtained :-(")
+            if track_url == False:
+                Log.Error("Play track couldn't be obtained. This is very bad :-(")
+                return None
+            
+            self.play_count = self.play_count + 1
+            if self.play_count >= 3:
+                Log.Debug('Scheduling preventive restart (%s plays)' % str(self.play_count))
+                Thread.CreateTimer(2, self.preventive_restart, globalize=True)
+
+            return Redirect(track_url)
+    
+    def get_track_url(self, track_uri):
+        if not track_uri:
             return None
 
-        return Redirect(track_url)
-
-    def get_track_url(self, uri):
-        if not uri:
-            return None
-
-        self.track_lock.acquire()
-
-        Log.Debug(
-            'Acquired track_lock, current_track: %s',
-            repr(self.current_track)
-        )
-        
-        track = self.client.get(uri)
-        
-        #If first request failed, trigger re-connection to spotify
-        retry_num = 0
-        while not track and retry_num < 2:
-            retry_num += 1
-            Log.Info('client.get failed, re-connecting to spotify...')
-            self.start()
-            Log.Info('Fetching track...')
-            track = self.client.get(uri)
-        
-        if not track:
-            self.current_track = None
-            Log.Warn('Unable to fetch track URL (connection problem?)')
-            try:
-                self.track_lock.release()
-            except: 
-                pass
-            return None
-
-
-        if self.current_track and self.current_track.matches(track):
-            Log.Debug('Using existing track: %s', repr(self.current_track))
-            try:
-                self.track_lock.release()
-            except: 
-                pass
-            return self.current_track.url
-
-        # Reset current state
-        self.current_track = None
-
-        # First try get track url
-        track_url = track.getFileURL(retries=1)
-
-        # If first request failed, trigger re-connection to spotify
-        retry_num = 0
-        while not track_url and retry_num < 3:
-            retry_num += 1
-
-            Log.Info('get_track_url failed, re-connecting to spotify...')
-            self.start()
-
-            # Update reference to spotify client (otherwise getFileURL request will fail)
-            track.spotify = self.client.spotify
-
-            Log.Info('Fetching track url...')
-            track_url = track.getFileURL(retries=1)
-
-        # Finished
-        if track_url:
-            self.client.spotify.api.send_track_event(track.getID(), 'play', 0)
-            #self.client.spotify.api.send_track_progress(track.getID(), track.getDuration())
-            self.current_track = Track.create(track, track_url)
-            Log.Info('Current Track: %s', repr(self.current_track))
+        track_url = None
+        if self.current_track and self.current_track.matches(track_uri):
+            Log.Debug('Cache hit for track with uri: %s' % track_uri)
+            track_url = self.current_track.url
         else:
             self.current_track = None
-            Log.Warn('Unable to fetch track URL (connection problem?)')
-
-        try:
-            self.track_lock.release()
-        except: 
-            pass
+            track = self.client.get(track_uri)
+            if track:
+                track_url = track.getFileURL(urlOnly=True, retries=1) #self.client.getTrackFileURL(track_uri, retries=1)
+        
         return track_url
+
+    #
+    # TRACK DETAIL
+    #
+    @check_restart
+    def metadata(self, uri): 
+        """ Get a track metadata """
+        Log('metadata(%s)' % repr(uri))
+
+        if not uri:
+            Log("Metadata callback invoked with NULL URI")
+            return
+  
+        track_metadata = self.get_track_metadata(uri)
+        
+        # If first request failed, trigger re-connection to spotify
+        retry_num = 0 
+        while not track_metadata and retry_num < 3:
+            Log.Info('First get_track_metadata failed')
+            
+            with self.restart_lock:
+                Log.Debug('Acquired restart_lock in metadata for track: %s' % uri)
+                
+                track_metadata = self.get_track_metadata(uri)
+                if not track_metadata:
+                    Log.Info('get_track_metadata failed again, re-connecting to spotify...')
+                    time.sleep(retry_num*0.5) # Wait some time based on number of failures
+                    self.start()
+                    track_metadata = self.get_track_metadata(uri)
+                    retry_num = retry_num + 1
+
+                Log.Debug('Released restart_lock in metadata, for track: %s' % uri)
+
+        if track_metadata:
+            track_object = self.create_track_object_from_metatada(track_metadata)
+            oc = ObjectContainer()
+            oc.add(track_object)
+            return oc
+        else:
+            return ObjectContainer()
+
+    def get_track_metadata(self, track_uri):
+        if not track_uri:
+            return None
+
+        track = self.client.get(track_uri)
+        if not track:
+            return None
+
+        track_uri       = track.getURI()
+        title           = track.getName().decode("utf-8")
+        image_url       = self.select_image(track.getAlbumCovers())
+        track_duration  = int(track.getDuration())
+        track_number    = int(track.getNumber())
+        track_album     = track.getAlbum(nameOnly=True).decode("utf-8")
+        track_artists   = track.getArtists(nameOnly=True).decode("utf-8")
+        metadata        = TrackMetadata(title, image_url, track_uri, track_duration, track_number, track_album, track_artists)
+
+        return metadata
 
     @staticmethod
     def select_image(images):
@@ -189,6 +218,7 @@ class SpotifyPlugin(object):
         return self.select_image(images)
 
     @authenticated
+    @check_restart
     def image(self, uri):
         if not uri:
             # TODO media specific placeholders
@@ -213,6 +243,7 @@ class SpotifyPlugin(object):
     #
 
     @authenticated
+    @check_restart
     def explore(self):
         """ Explore shared music
         """
@@ -237,6 +268,7 @@ class SpotifyPlugin(object):
         )
     
     @authenticated
+    @check_restart
     def your_music(self):
         """ Explore your music
         """
@@ -270,6 +302,7 @@ class SpotifyPlugin(object):
     #
 
     @authenticated
+    @check_restart
     def featured_playlists(self):
         Log("featured playlists")
 
@@ -287,6 +320,7 @@ class SpotifyPlugin(object):
         return oc
 
     @authenticated
+    @check_restart
     def top_playlists(self):
         Log("top playlists")
 
@@ -304,6 +338,7 @@ class SpotifyPlugin(object):
         return oc
 
     @authenticated
+    @check_restart
     def new_releases(self):
         Log("new releases")
 
@@ -325,6 +360,7 @@ class SpotifyPlugin(object):
     #
 
     @authenticated
+    @check_restart
     def playlists(self):
         Log("playlists")
 
@@ -342,6 +378,7 @@ class SpotifyPlugin(object):
         return oc
 
     @authenticated
+    @check_restart
     def starred(self):
         """ Return a directory containing the user's starred tracks"""
         Log("starred")
@@ -360,6 +397,7 @@ class SpotifyPlugin(object):
         return oc
 
     @authenticated
+    @check_restart
     def albums(self):
         Log("albums")
 
@@ -377,6 +415,7 @@ class SpotifyPlugin(object):
         return oc
 
     @authenticated
+    @check_restart
     def artists(self):
         Log("artists")
 
@@ -398,6 +437,7 @@ class SpotifyPlugin(object):
     #
 
     @authenticated
+    @check_restart
     def artist(self, uri):
         """ Browse an artist.
 
@@ -409,12 +449,12 @@ class SpotifyPlugin(object):
 
             objects=[
                 DirectoryObject(
-                    key  =Callback(self.artist_top_tracks, uri=uri),
+                    key  = route_path('artist/%s/top_tracks' % uri),
                     title=L("MENU_TOP_TRACKS"),
                     thumb=R("icon-default.png")
                 ),
                 DirectoryObject(
-                    key   =Callback(self.artist_albums, uri=uri),
+                    key  = route_path('artist/%s/albums' % uri),
                     title =L("MENU_ALBUMS"),
                     thumb =R("icon-default.png")
                 )
@@ -422,6 +462,7 @@ class SpotifyPlugin(object):
         )
 
     @authenticated
+    @check_restart
     def artist_albums(self, uri):
         """ Browse an artist.
         :param uri:            The Spotify URI of the artist to browse.
@@ -439,6 +480,7 @@ class SpotifyPlugin(object):
         return oc
     
     @authenticated
+    @check_restart
     def artist_top_tracks(self, uri):
         """ Browse an artist.
         :param uri:            The Spotify URI of the artist to browse.
@@ -460,6 +502,7 @@ class SpotifyPlugin(object):
     #
 
     @authenticated
+    @check_restart
     def album(self, uri):
         """ Browse an album.
 
@@ -483,6 +526,7 @@ class SpotifyPlugin(object):
     #
 
     @authenticated
+    @check_restart
     def playlist(self, uri):
         pl = self.client.get(uri)
 
@@ -509,31 +553,8 @@ class SpotifyPlugin(object):
         return oc
 
     #
-    # TRACK DETAIL
-    #
-
-    def metadata(self, track_uri):
-        Log.Debug('fetching metadata for track_uri: "%s"', track_uri)
-        
-        oc = ObjectContainer()
-        
-        track = self.client.get(track_uri)
-        if track == False:
-            Log.Info('get_track failed, re-connecting to spotify...')
-            self.start()
-
-        track = self.client.get(track_uri)
-        if track == False:
-            Log("Play track couldn't be obtained :-(")
-            return oc
-        
-        self.add_track_to_directory(track, oc)
-        return oc
-
-    #
     # MAIN MENU
     #
-
     def main_menu(self):
         return ObjectContainer(
             objects=[
@@ -573,37 +594,60 @@ class SpotifyPlugin(object):
     #
     # Create objects
     #
-
     def create_track_object(self, track):
-        title = track.getName().decode("utf-8")
+        if not track:
+            return None
 
-        image_url = self.select_image(track.getAlbumCovers())
+        # Get metadata info
+        track_uri       = track.getURI()
+        title           = track.getName().decode("utf-8")
+        image_url       = self.select_image(track.getAlbumCovers())
+        track_duration  = int(track.getDuration()) - 500
+        track_number    = int(track.getNumber())
+        track_album     = track.getAlbum(nameOnly=True).decode("utf-8")
+        track_artists   = track.getArtists(nameOnly=True).decode("utf-8")
+        metadata = TrackMetadata(title, image_url, track_uri, track_duration, track_number, track_album, track_artists)
+                
+        return self.create_track_object_from_metatada(metadata)
 
-        return TrackObject(
+    def create_track_object_from_metatada(self, metadata):
+        if not metadata:
+            return None
+
+        uri = metadata.uri
+
+        track_obj = TrackObject(
             items=[
                 MediaObject(
-                    parts=[PartObject(key=Callback(self.play, uri=track.getURI()))],
-                    duration=int(track.getDuration()),
+                    parts=[PartObject(key=route_path('play/%s' % uri))],
+                    #parts=[PartObject(key=HTTPLiveStreamURL(Callback(self.play, uri=uri, ext='mp3')))],
+                    #parts = [PartObject(key = Callback(self.play, uri=uri, ext='mp3'))],
+                    duration=metadata.duration,
                     container=Container.MP3,
-                    audio_codec=AudioCodec.MP3
+                    audio_codec=AudioCodec.MP3,
+                    audio_channels = 2
                 )
             ],
 
-            key=route_path('metadata', track.getURI()),
-            rating_key=track.getURI(),
+            key = route_path('metadata', uri),
+            
+            rating_key = uri,
 
-            title=title,
-            album=track.getAlbum(nameOnly=True).decode("utf-8"),
-            artist=track.getArtists(nameOnly=True),
+            title  = metadata.title,
+            album  = metadata.album,
+            artist = metadata.artists,
 
-            index=int(track.getNumber()),
-            duration=int(track.getDuration()),
+            index    = metadata.number,
+            duration = metadata.duration,
 
             source_title='Spotify',
 
-            art=function_path('image.png', uri=image_url),
-            thumb=function_path('image.png', uri=image_url)
+            art   = function_path('image.png', uri=metadata.image_url),
+            thumb = function_path('image.png', uri=metadata.image_url)
         )
+        Log.Debug('New track object for metadata: --|%s|%s|%s|%s|%s|%s|--' % (metadata.image_url, metadata.uri, str(metadata.duration), str(metadata.number), metadata.album, metadata.artists))
+
+        return track_obj
 
     def create_album_object(self, album):
         """ Factory method for album objects """

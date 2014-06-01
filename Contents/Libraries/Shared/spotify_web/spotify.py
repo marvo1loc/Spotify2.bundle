@@ -9,6 +9,7 @@ import execjs
 import urllib
 from ssl import SSLError
 from threading import Thread, Event, Lock
+import time
 
 import requests
 from ws4py.client.threadedclient import WebSocketClient
@@ -91,7 +92,7 @@ class Logging():
 
 
 class WrapAsync():
-    timeout = 10
+    timeout = 15
 
     def __init__(self, callback, func, *args):
         self.marker = Event()
@@ -133,7 +134,7 @@ class SpotifyClient(WebSocketClient):
         self.api_object.recv_packet(m)
 
     def closed(self, code, message):
-        self.api_object.restart()
+        self.api_object.shutdown()
 
 
 class SpotifyUtil():
@@ -195,10 +196,18 @@ class SpotifyUtil():
 class SpotifyAPI():
     def __init__(self, login_callback_func=False, log_level=1):
         Logging.log_level = log_level
-        self.start(login_callback_func)
 
-    def start(self, login_callback_func):
-        self.auth_server = "play.spotify.com"
+        self.auth_server    = "play.spotify.com"
+        self.global_lock    = Lock()
+        self.ws_lock        = Lock()
+        self.ws             = None
+        self.login_callback = login_callback_func
+        self.disconnecting  = False
+        self.connecting     = False
+        self.stop_heartbeat = False
+        self.start()
+
+    def start(self):
         self.logged_in_marker = Event()
         self.heartbeat_marker = Event()
         self.username = None
@@ -206,12 +215,8 @@ class SpotifyAPI():
         self.account_type = None
         self.country = None
         self.settings = None
-        self.disconnecting = False
-        self.ws = None
-        self.ws_lock = Lock()
         self.seq = 0
-        self.cmd_callbacks = {}
-        self.login_callback = login_callback_func
+        self.cmd_callbacks = {}        
         self.is_logged_in = False
 
     def auth(self, username, password):
@@ -225,7 +230,6 @@ class SpotifyAPI():
         }
 
         session = requests.session()
-
         resp = session.get("https://" + self.auth_server, headers=headers)
         data = resp.text
 
@@ -321,6 +325,7 @@ class SpotifyAPI():
             Logging.error("Please upgrade to Premium")
             self.disconnect()
         else:
+            self.stop_heartbeat = False
             heartbeat_thread = Thread(target=self.heartbeat_handler)
             heartbeat_thread.daemon = True
             heartbeat_thread.start()
@@ -333,7 +338,6 @@ class SpotifyAPI():
     def logged_in(self):
         # Send screen size
         self.send_command("sp/log", [41, 1, 0, 0, 0, 0], self.log_callback)
-
         self.user_info_request(self.populate_userdata_callback)
 
     def login(self):
@@ -358,14 +362,14 @@ class SpotifyAPI():
             Logging.notice("Something is not right, echo received: %s" % res)
         return # Nothing to do
 
-    def track_uri(self, track, callback=False, retries=3):
+    def track_url(self, track, callback=False, retries=3):
         track = self.recurse_alternatives(track)
         if not track:
             return False
-        
+
         args = ["mp3160", SpotifyUtil.gid2id(track.gid)]
         return self.wrap_request("sp/track_uri", args, callback, retries=retries)
-
+       
     def parse_metadata(self, sp, resp, callback_data):
         header = mercury_pb2.MercuryReply()
         header.ParseFromString(base64.decodestring(resp[0]))
@@ -434,7 +438,7 @@ class SpotifyAPI():
     def is_track_available(self, track, country):
         allowed_countries = []
         forbidden_countries = []
-        available = False
+        available = True
 
         for restriction in track.restriction:
             allowed_str = restriction.countries_allowed
@@ -457,16 +461,21 @@ class SpotifyAPI():
                 "free": 0
             }
 
-            applicable = account_type_map[self.account_type] in restriction.catalogue
+            if self.account_type != None:
+                applicable = account_type_map[self.account_type] in restriction.catalogue
+            else:
+                applicable = True
 
             # enable this to help debug restriction issues
             if False:
-                print restriction
-                print allowed_countries
-                print forbidden_countries
-                print "allowed: "+str(allowed)
-                print "forbidden: "+str(forbidden)
-                print "applicable: "+str(applicable)
+                Logging.debug("*** RESTRICTIONS ***")
+                Logging.debug(str(self.account_type))
+                Logging.debug(str(restriction))
+                Logging.debug(allowed_str)
+                Logging.debug(forbidden_str)
+                Logging.debug("allowed: "+str(allowed))
+                Logging.debug("forbidden: "+str(forbidden))
+                Logging.debug("applicable: "+str(applicable))
 
             available = True == allowed and False == forbidden and True == applicable
             if available:
@@ -625,7 +634,7 @@ class SpotifyAPI():
 
         return self.wrap_request("sp/hm_b64", args, callback, self.parse_my_music)
 
-    def playlist_op_track(self, playlist_uri, track_uri, op, callback=None):
+    def playlist_op_track(self, playlist_uri, track_uri, op, callback=False):
         playlist = playlist_uri.split(":")
 
         if playlist_uri == "rootlist":
@@ -657,7 +666,7 @@ class SpotifyAPI():
         else:
             return self.playlist_remove_track("spotify:user:"+self.username+":starred", track_uri, callback)
 
-    def playlist_op(self, op, path, optype="update", name=None, index=None, callback=None):
+    def playlist_op(self, op, path, optype="update", name=None, index=None, callback=False):
         mercury_request = mercury_pb2.MercuryRequest()
         mercury_request.body = op
         mercury_request.uri = "hm://" + path
@@ -730,7 +739,7 @@ class SpotifyAPI():
 
         return self.wrap_request("sp/search", args, callback)
 
-    def user_info_request(self, callback=None):
+    def user_info_request(self, callback=False):
         return self.wrap_request("sp/user_info", [], callback)
 
     def heartbeat(self):
@@ -821,7 +830,12 @@ class SpotifyAPI():
         self.send_string(msg)
 
     def send_string(self, msg):
-        if self.disconnecting:
+        if self.ws is None or self.ws.stream is None:
+            Logging.debug("Message send but connection is not active, ignoring: [%s]" % msg)
+            return
+
+        if self.disconnecting and not self.connecting:
+            Logging.debug("Message send while disconnecting, ignoring: [%s]" % msg)
             return
 
         msg_enc = json.dumps(msg, separators=(',', ':'))
@@ -831,8 +845,14 @@ class SpotifyAPI():
                 self.ws.send(msg_enc)
         except SSLError:
             Logging.notice("SSL error, attempting to continue")
+        
+        return True
 
     def recv_packet(self, msg):
+        if self.disconnecting and not self.connecting:
+            Logging.debug("Message recv while disconnecting, ignoring: [%s]" % msg)
+            return
+
         Logging.debug("recv " + str(msg))
         packet = json.loads(str(msg))
         if "error" in packet:
@@ -943,47 +963,85 @@ class SpotifyAPI():
             Logging.error(major_str + " - " + minor_str)
 
     def heartbeat_handler(self):
-        while not self.disconnecting:
+        self.heartbeat_marker.clear()
+        while not self.stop_heartbeat:
             self.heartbeat()
-            self.heartbeat_marker.wait(timeout=40)
+            self.heartbeat_marker.wait(timeout=45)
 
-    def connect(self, username, password, timeout=20):
-        if self.settings is None:
-            if not self.auth(username, password):
-                return False
-            self.username = username
-            self.password = password
-
-        Logging.notice("Connecting to "+self.settings["wss"])
+    def connect(self, username, password, timeout=15):
+        if self.connecting:
+            Logging.error("Already connecting, nothing to do!")
+            return False
         
+        self.connecting = True
         try:
-            self.ws = SpotifyClient(self.settings["wss"])
-            self.ws.set_api(self)
-            self.ws.daemon = True
+            if self.settings is None:
+                if not self.auth(username, password):
+                    return False
+                self.username = username
+                self.password = password
+            
+            Logging.notice("Connecting to "+self.settings["wss"])
+            with self.ws_lock:
+                self.ws = SpotifyClient(self.settings["wss"])
+                self.ws.set_api(self)
+                self.ws.daemon = True
+
             self.ws.connect()
+
             if not self.login_callback:
                 try:
                     self.logged_in_marker.wait(timeout=timeout)
                     return self.is_logged_in
-                except:
+                except Exception, e:
+                    Logging.error("There was a timeout while connecting to spotify. Message: " + str(e))
                     return False
-        except:
+
+        except Exception, e:
+            Logging.error("There was a problem while connecting to spotify. Message: " + str(e))
             self.disconnect()
             return False
+        finally:
+            self.connecting    = False
+            self.disconnecting = False
 
     def set_log_level(self, level):
         Logging.log_level = level
 
     def shutdown(self):
-        self.disconnecting = True
-        self.heartbeat_marker.set()
-
-    def restart(self):
-        self.disconnecting = True
+        self.stop_heartbeat = True
         self.heartbeat_marker.set()
         self.disconnect()
-        self.start(self.login_callback)
+
+    def reconnect(self, username, password):
+        if self.disconnecting:
+            Logging.error("Already trying to reconnect. Nothing to do.")
+            return False
+        
+        with self.global_lock:
+            if self.disconnecting:
+                Logging.error("Already trying to reconnect. Nothing to do.")
+                return False
+
+            self.disconnecting = True
+            try:
+                Logging.debug("Disconnecting...")
+                self.shutdown()
+                #time.sleep(0.25) 
+                
+                Logging.debug("Restarting...")
+                self.start()
+                Logging.debug("Conecting...")
+                return self.connect(username, password)
+
+            except Exception, e:
+                Logging.error("There was a problem while reconnecting to spotify. Message: " + str(e))
+                return False            
+            finally:
+                self.disconnecting = False
 
     def disconnect(self):
         if self.ws is not None:
-            self.ws.close()
+            if self.ws.stream is not None:
+                self.ws.close()
+            self.ws = None

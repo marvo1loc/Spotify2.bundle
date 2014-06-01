@@ -22,10 +22,9 @@ class SpotifyClient(object):
         Logging.hook(1, Log.Warn)
         Logging.hook(0, Log.Error)
 
-        self.spotify = Spotify(username, password, log_level=3)
         self.username = username
-        
         self.tunigo  = Tunigo(region)
+        self.spotify = Spotify(username, password, log_level=3)
 
 
     #
@@ -36,8 +35,7 @@ class SpotifyClient(object):
         return self.spotify.logged_in()
 
     def restart(self, username, password, region):
-        self.spotify.restart(username, password)
-        self.tunigo = Tunigo(region)
+        return self.spotify.restart(username, password)
 
     def shutdown(self):
         self.spotify.shutdown()

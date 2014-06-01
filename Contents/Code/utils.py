@@ -28,32 +28,40 @@ class ViewMode(object):
         # "Songs", "Albums", "ImageStream"
         # "Seasons", "Pictures", "Episodes"
 
+class TrackMetadata(object):
+    def __init__(self, title, image_url, uri, duration, number, album, artists):
+        self.title      = title
+        self.image_url  = image_url
+        self.uri        = uri
+        self.duration   = duration
+        self.number     = number
+        self.album      = album
+        self.artists    = artists
 
 class Track(object):
-    def __init__(self, track, url):
-        self.track = track
-        self.url = url
-
+    def __init__(self, track_uri, track_url):
+        self.uri     = track_uri
+        self.url     = track_url
         self.expires = None
 
     def valid(self):
         if not self.expires:
             return True
 
-        current = time.time()
+        current = time.time() + 25 # At least some ms to be able to process it
 
         Log.Debug('Track.valid: %s > %s', self.expires, current)
         return self.expires > current
 
-    def matches(self, other_track):
-        return False #self.track.getURI() == other_track.getURI() and self.valid()
+    def matches(self, other_track_uri):
+        return self.uri == other_track_uri and self.valid()
 
     @classmethod
-    def create(cls, track, url):
-        result = cls(track, url)
+    def create(cls, track_uri, track_url):
+        result = cls(track_uri, track_url)
 
         # Parse URL
-        parsed_url = urlparse(url)
+        parsed_url = urlparse(track_url)
 
         query = parse_qs(parsed_url.query)
 
@@ -67,7 +75,7 @@ class Track(object):
 
     def __repr__(self):
         return '<Track track: %s, expires: %s, url: %s>' % (
-            repr(self.track),
+            repr(self.uri),
             repr(self.expires),
             repr(self.url)
         )
@@ -92,29 +100,67 @@ def authenticated(func):
         def __call__(self, *args, **kwargs):
             plugin = args[0]
             client = plugin.client
-            if not client or not client.is_logged_in():
-                return self.access_denied_message(plugin, client)
-            return func(*args, **kwargs)
+
+            plugin.restart_marker.wait(timeout=30)
+            denied_message = self.access_denied_message(plugin, client)
+            if denied_message:
+                return denied_message
+            else:
+                return func(*args, **kwargs)
 
         def access_denied_message(self, plugin, client):
+            if client and client.is_logged_in():
+                return False;
+
             if not client:
                 return MessageContainer(
                     header=L("MSG_TITLE_MISSING_LOGIN"),
                     message=L("MSG_BODY_MISSING_LOGIN")
                 )
-            elif not client.spotify.api.ws:
+            elif not client.spotify.api.ws or client.spotify.api.disconnecting:
                 return MessageContainer(
                     header=L("MSG_TITLE_LOGIN_IN_PROGRESS"),
                     message=L("MSG_BODY_LOGIN_IN_PROGRESS")
                 )
             else:
-                # Trigger a re-connect
-                Log.Warn('Connection failed, reconnecting...')
-                plugin.start()
+                # lock the restart
+                with plugin.restart_lock:
+                    # check whats the real status after the lock
+                    if client.is_logged_in():
+                        return False
+                    elif not client.spotify.api.ws or client.spotify.api.disconnecting:
+                        return MessageContainer(
+                            header=L("MSG_TITLE_LOGIN_IN_PROGRESS"),
+                            message=L("MSG_BODY_LOGIN_IN_PROGRESS")
+                        )
+                    else:
+                        # Trigger a re-connect
+                        Log.Warn('Connection failed, reconnecting...')
+                        plugin.start()
+                        return MessageContainer(
+                            header=L("MSG_TITLE_LOGIN_FAILED"),
+                            message=L("MSG_TITLE_LOGIN_FAILED")
+                        )
 
-                return MessageContainer(
-                    header=L("MSG_TITLE_LOGIN_FAILED"),
-                    message=L("MSG_TITLE_LOGIN_FAILED")
-                )
+    return decorator()
 
+
+def check_restart(func):
+    """ Decorator used to force a restart is not currently happening
+    
+    We must return a class with a __name__ property here since the Plex
+    framework uses it to generate a route and it stops us assigning
+    properties to function objects.
+    """
+
+    class decorator(object):
+        @property
+        def __name__(self):
+            return func.func_name
+
+        def __call__(self, *args, **kwargs):
+            plugin = args[0]
+            plugin.restart_marker.wait(timeout=30)
+            return func(*args, **kwargs)
+    
     return decorator()

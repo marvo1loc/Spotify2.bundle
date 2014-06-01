@@ -44,7 +44,7 @@ def album(**kwargs):
 def playlist(**kwargs):
     return plugin_callback(SpotifyPlugin.playlist, kwargs)
 
-@route(ROUTEBASE + 'metadata/{track_uri}')
+@route(ROUTEBASE + 'metadata/{uri}')
 def metadata(**kwargs):
     return plugin_callback(SpotifyPlugin.metadata, kwargs)
 
@@ -92,11 +92,12 @@ def search(**kwargs):
     return sp_search.run(**kwargs)
 
 
+
 def main_menu(**kwargs):
     return plugin_callback(SpotifyPlugin.main_menu, kwargs)
 
-
-@route(ROUTEBASE + 'play')
+@indirect
+@route(ROUTEBASE + 'play/{uri}')
 def play(**kwargs):
     return plugin_callback(SpotifyPlugin.play, kwargs)
 

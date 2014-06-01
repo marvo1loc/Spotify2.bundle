@@ -1,5 +1,5 @@
 from functools import partial
-from threading import Thread
+from threading import Thread, Lock
 from Queue import Queue
 
 from .spotify import SpotifyAPI, SpotifyUtil
@@ -125,7 +125,7 @@ class SpotifyTrack(SpotifyMetadataObject):
         return self.obj.duration
     
     def getFileURL(self, urlOnly=True, retries=3):
-        resp = self.spotify.api.track_uri(self.obj, retries=retries)
+        resp = self.spotify.api.track_url(self.obj, retries=retries)
 
         if False != resp and "uri" in resp:
             return resp["uri"] if urlOnly else resp
@@ -421,6 +421,7 @@ class Spotify():
     AUTOREPLACE_TRACKS = True
 
     def __init__(self, username, password, log_level=1):
+        self.global_lock = Lock()
         self.api = SpotifyAPI(log_level=log_level)
         self.api.connect(username, password)
 
@@ -431,8 +432,7 @@ class Spotify():
         self.api.disconnect()
 
     def restart(self, username, password):
-        self.api.restart()
-        self.api.connect(username, password)
+        return self.api.reconnect(username, password)
 
     def shutdown(self):
         self.api.shutdown()
@@ -510,71 +510,72 @@ class Spotify():
 
     @Cache
     def objectFromURI(self, uris, asArray=False):
-        if not self.logged_in():
-            return False
-        
-        uris = [uris] if type(uris) != list else uris
-        if len(uris) == 0:
-            return [] if asArray else None
-
-        uri_type = SpotifyUtil.get_uri_type(uris[0])
-        
-        if not uri_type:
-            return [] if asArray else None
-        elif uri_type == "playlist":
-            if len(uris) == 1:
-                results = [SpotifyPlaylist(self, uri=uris[0])]
-            else:
-                thread_results = {}
-                jobs = []
-                for index in range(0, len(uris)):
-                    jobs.append((self, uris[index], thread_results, index))
-
-                def work_function(spotify, uri, results, index):
-                    results[index] = SpotifyPlaylist(spotify, uri=uri)
-
-                Spotify.doWorkerQueue(work_function, jobs)
-
-                results = [v for k, v in thread_results.items()]
-
-        elif uri_type in ["track", "album", "artist"]:
-            results = []
-            uris = [uri for uri in uris if not SpotifyUtil.is_local(uri)]           
-            start  = 0
-            finish = 100            
-            uris_to_ask = uris[start:finish]
-            while len(uris_to_ask) > 0:
-                
-                objs = self.api.metadata_request(uris_to_ask)
-                objs = [objs] if type(objs) != list else objs
-
-                failed_requests = len([obj for obj in objs if False == obj])
-                if failed_requests > 0:
-                    print failed_requests, "metadata requests failed"
-
-                objs = [obj for obj in objs if False != obj]
-                if uri_type == "track":
-                    tracks = [SpotifyTrack(self, obj=obj) for obj in objs]
-                    results.extend([track for track in tracks if False == self.AUTOREPLACE_TRACKS or track.isAvailable()])
-                elif uri_type == "album":
-                    results.extend([SpotifyAlbum(self, obj=obj) for obj in objs])
-                elif uri_type == "artist":
-                    results.extend([SpotifyArtist(self, obj=obj) for obj in objs])
+        with self.global_lock:
+            if not self.logged_in():
+                return False
             
-                start  = finish
-                finish = finish + 100
-                uris_to_ask = uris[start:finish]
-
-        else:
-            return [] if asArray else None
-
-        if not asArray:
-            if len(results) == 1:
-                results = results[0]
-            elif len(results) == 0:
+            uris = [uris] if type(uris) != list else uris
+            if len(uris) == 0:
                 return [] if asArray else None
 
-        return results
+            uri_type = SpotifyUtil.get_uri_type(uris[0])
+            
+            if not uri_type:
+                return [] if asArray else None
+            elif uri_type == "playlist":
+                if len(uris) == 1:
+                    results = [SpotifyPlaylist(self, uri=uris[0])]
+                else:
+                    thread_results = {}
+                    jobs = []
+                    for index in range(0, len(uris)):
+                        jobs.append((self, uris[index], thread_results, index))
+
+                    def work_function(spotify, uri, results, index):
+                        results[index] = SpotifyPlaylist(spotify, uri=uri)
+
+                    Spotify.doWorkerQueue(work_function, jobs)
+
+                    results = [v for k, v in thread_results.items()]
+
+            elif uri_type in ["track", "album", "artist"]:
+                results = []
+                uris = [uri for uri in uris if not SpotifyUtil.is_local(uri)]
+                start  = 0
+                finish = 100            
+                uris_to_ask = uris[start:finish]
+                while len(uris_to_ask) > 0:
+                    
+                    objs = self.api.metadata_request(uris_to_ask)
+                    objs = [objs] if type(objs) != list else objs
+
+                    failed_requests = len([obj for obj in objs if False == obj])
+                    if failed_requests > 0:
+                        print failed_requests, "metadata requests failed"
+
+                    objs = [obj for obj in objs if False != obj]
+                    if uri_type == "track":
+                        tracks = [SpotifyTrack(self, obj=obj) for obj in objs]
+                        results.extend([track for track in tracks if False == self.AUTOREPLACE_TRACKS or track.isAvailable()])
+                    elif uri_type == "album":
+                        results.extend([SpotifyAlbum(self, obj=obj) for obj in objs])
+                    elif uri_type == "artist":
+                        results.extend([SpotifyArtist(self, obj=obj) for obj in objs])
+                
+                    start  = finish
+                    finish = finish + 100
+                    uris_to_ask = uris[start:finish]
+
+            else:
+                return [] if asArray else None
+
+            if not asArray:
+                if len(results) == 1:
+                    results = results[0]
+                elif len(results) == 0:
+                    return [] if asArray else None
+
+            return results
 
     @staticmethod
     def doWorkerQueue(work_function, args, worker_thread_count=5):
