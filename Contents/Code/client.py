@@ -161,3 +161,8 @@ class SpotifyClient(object):
         """ Return the user's artists"""
         return self.spotify.getMyMusic(type="artists")
 
+    #
+    #  Uri validation
+    #
+    def is_track_uri_valid(self, track_uri):
+        return self.spotify.is_track_uri_valid(track_uri)

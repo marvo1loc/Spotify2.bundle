@@ -156,7 +156,7 @@ class SpotifyUtil():
             res = [v % 62] + res
             v /= 62
         id = ''.join([base62[i] for i in res])
-        return ("spotify:"+uritype+":"+id).rjust(22, "0")
+        return ("spotify:"+uritype+":"+id.rjust(22, "0"))
 
     @staticmethod
     def uri2id(uri):
@@ -195,6 +195,13 @@ class SpotifyUtil():
     @staticmethod
     def is_local(uri):
         return SpotifyUtil.get_uri_type(uri) == "local"
+
+    @staticmethod
+    def is_track_uri_valid(track_uri):
+        try:
+            return track_uri != None and len(track_uri) == 36 and track_uri[0:14] == "spotify:track:"
+        except:
+            return False
 
 class SpotifyAPI():
     def __init__(self, login_callback_func=False, log_level=1):
@@ -371,9 +378,9 @@ class SpotifyAPI():
         return # Nothing to do
 
     def track_url(self, track, callback=False, retries=3):
-        alt_track = self.recurse_alternatives(track)
-        if alt_track:
-            track = alt_track
+        track = self.recurse_alternatives(track)
+        if not track:
+            return False
 
         args = ["mp3160", SpotifyUtil.gid2id(track.gid)]
         return self.wrap_request("sp/track_uri", args, callback, retries=retries)
@@ -444,52 +451,59 @@ class SpotifyAPI():
             callback_data[0](self, data)
 
     def is_track_available(self, track, country):
-        allowed_countries = []
-        forbidden_countries = []
-        available = True
+        try:
+            track_uri = SpotifyUtil.gid2uri('track', track.gid)        
+            if not SpotifyUtil.is_track_uri_valid(track_uri):
+                return False
 
-        for restriction in track.restriction:
-            allowed_str = restriction.countries_allowed
-            allowed_countries += [allowed_str[i:i+2] for i in range(0, len(allowed_str), 2)]
+            allowed_countries = []
+            forbidden_countries = []
+            available = True
 
-            forbidden_str = restriction.countries_forbidden
-            forbidden_countries += [forbidden_str[i:i+2] for i in range(0, len(forbidden_str), 2)]
+            for restriction in track.restriction:
+                allowed_str = restriction.countries_allowed
+                allowed_countries += [allowed_str[i:i+2] for i in range(0, len(allowed_str), 2)]
 
-            allowed = not restriction.HasField("countries_allowed") or country in allowed_countries
-            forbidden = self.country in forbidden_countries and len(forbidden_countries) > 0
+                forbidden_str = restriction.countries_forbidden
+                forbidden_countries += [forbidden_str[i:i+2] for i in range(0, len(forbidden_str), 2)]
 
-            if country in allowed_countries and country in forbidden_countries:
-                allowed = True
-                forbidden = False
+                allowed = not restriction.HasField("countries_allowed") or country in allowed_countries
+                forbidden = self.country in forbidden_countries and len(forbidden_countries) > 0
 
-            # guessing at names here, corrections welcome
-            account_type_map = {
-                "premium": 1,
-                "unlimited": 1,
-                "free": 0
-            }
+                if country in allowed_countries and country in forbidden_countries:
+                    allowed = True
+                    forbidden = False
 
-            if self.account_type != None:
-                applicable = account_type_map[self.account_type] in restriction.catalogue
-            else:
-                applicable = True
+                # guessing at names here, corrections welcome
+                account_type_map = {
+                    "premium":   1,
+                    "unlimited": 1,
+                    "free":      0
+                }
 
-            # enable this to help debug restriction issues
-            if False:
-                Logging.debug("*** RESTRICTIONS ***")
-                Logging.debug(str(self.account_type))
-                Logging.debug(str(restriction))
-                Logging.debug(allowed_str)
-                Logging.debug(forbidden_str)
-                Logging.debug("allowed: "+str(allowed))
-                Logging.debug("forbidden: "+str(forbidden))
-                Logging.debug("applicable: "+str(applicable))
+                if self.account_type != None:
+                    applicable = account_type_map[self.account_type] in restriction.catalogue
+                else:
+                    applicable = True
 
-            available = True == allowed and False == forbidden and True == applicable
-            if available:
-                break
+                # enable this to help debug restriction issues
+                if False:
+                    Logging.debug("*** RESTRICTIONS ***")
+                    Logging.debug(str(self.account_type))
+                    Logging.debug(str(restriction))
+                    Logging.debug(allowed_str)
+                    Logging.debug(forbidden_str)
+                    Logging.debug("allowed: "+str(allowed))
+                    Logging.debug("forbidden: "+str(forbidden))
+                    Logging.debug("applicable: "+str(applicable))
 
-        return available
+                available = True == allowed and False == forbidden and True == applicable
+                if available:
+                    break
+
+            return available
+        except:
+            return False
 
     def recurse_alternatives(self, track, attempted=None, country=None):
         if not attempted:
@@ -502,14 +516,15 @@ class SpotifyAPI():
                 if self.is_track_available(alternative, country):
                     return alternative
             return False
-            for alternative in track.alternative:
-                uri = SpotifyUtil.gid2uri("track", alternative.gid)
-                if uri not in attempted:
-                    attempted += [uri]
-                    subtrack = self.metadata_request(uri)
-                    return self.recurse_alternatives(subtrack, attempted)
-            return False
+            #for alternative in track.alternative:
+            #    uri = SpotifyUtil.gid2uri("track", alternative.gid)
+            #    if uri not in attempted:
+            #        attempted += [uri]
+            #        subtrack = self.metadata_request(uri)
+            #        return self.recurse_alternatives(subtrack, attempted)
+            #return False
 
+    
     def generate_multiget_args(self, metadata_type, requests):
         args = [0]
 
@@ -609,14 +624,11 @@ class SpotifyAPI():
         return self.wrap_request("sp/hm_b64", args, callback, self.parse_playlist)
 
     def playlist_request(self, uri, fromnum=0, num=100, callback=False):
-        if type(uri) == unicode:
-            uri = uri.encode('utf8')
-        uri = urllib.quote_plus(uri)
-        playlist = uri[10:].replace("%3A", "/")
-
+        playlist_uri = urllib.quote_plus(uri.encode('utf8')).replace("%3A", "/").decode("utf-8")[8:]
+        
         mercury_request = mercury_pb2.MercuryRequest()
         mercury_request.body = "GET"
-        mercury_request.uri = "hm://playlist/" + playlist + "?from=" + str(fromnum) + "&length=" + str(num)
+        mercury_request.uri = "hm://playlist/" + playlist_uri + "?from=" + str(fromnum) + "&length=" + str(num)
         
         req = base64.encodestring(mercury_request.SerializeToString())
         args = [0, req]

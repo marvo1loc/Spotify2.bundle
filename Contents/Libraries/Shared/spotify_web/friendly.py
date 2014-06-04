@@ -291,6 +291,10 @@ class SpotifyPlaylist(SpotifyObject):
     def getURI(self):
         return self.uri
 
+    def getUsername(self):
+        username = self.getURI().replace("spotify:user:", "")
+        return username[0:username.index(":")]
+
     def getName(self):
         return "Starred" if self.getID() == "starred" else self.obj.attributes.name
 
@@ -443,7 +447,6 @@ class Spotify():
         collection = self.api.my_music_request(type)
         for item in collection:
             uris.append(item['uri'])
-        print uris
         return self.objectFromURI(uris, asArray=True)
 
     @Cache
@@ -574,8 +577,11 @@ class Spotify():
                     results = results[0]
                 elif len(results) == 0:
                     return [] if asArray else None
-
+            
             return results
+
+    def is_track_uri_valid(self, track_uri):
+        return SpotifyUtil.is_track_uri_valid(track_uri)
 
     @staticmethod
     def doWorkerQueue(work_function, args, worker_thread_count=5):

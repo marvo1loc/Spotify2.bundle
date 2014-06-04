@@ -112,8 +112,8 @@ class SpotifyPlugin(object):
         """ Play a spotify track: redirect the user to the actual stream """
         Log('play(%s)' % repr(uri))
 
-        if not uri:
-            Log("Play track callback invoked with NULL URI")
+        if not self.client.is_track_uri_valid(uri):
+            Log("Play track callback invoked with invalid URI")
             return
         
         # Process play request one by one to avoid errors
@@ -143,7 +143,7 @@ class SpotifyPlugin(object):
             return Redirect(track_url)
     
     def get_track_url(self, track_uri):
-        if not track_uri:
+        if not self.client.is_track_uri_valid(track_uri):
             return None
 
         track_url = None
@@ -166,8 +166,8 @@ class SpotifyPlugin(object):
         """ Get a track metadata """
         Log('metadata(%s)' % repr(uri))
 
-        if not uri:
-            Log("Metadata callback invoked with NULL URI")
+        if not self.client.is_track_uri_valid(uri):
+            Log("Metadata callback invoked with invalid URI")
             return
   
         # Process metadata request one by one to avoid errors
@@ -193,14 +193,14 @@ class SpotifyPlugin(object):
                 return ObjectContainer()
 
     def get_track_metadata(self, track_uri):
-        if not track_uri:
+        if not self.client.is_track_uri_valid(track_uri):
             return None
 
         track = self.client.get(track_uri)
         if not track:
             return None
 
-        track_uri       = track.getURI()
+        track_uri       = track.getURI().decode("utf-8")
         title           = track.getName().decode("utf-8")
         image_url       = self.select_image(track.getAlbumCovers())
         track_duration  = int(track.getDuration())
@@ -620,7 +620,7 @@ class SpotifyPlugin(object):
                 )
             ],
         )
-
+    
     #
     # Create objects
     #
@@ -629,7 +629,7 @@ class SpotifyPlugin(object):
             return None
 
         # Get metadata info
-        track_uri       = track.getURI()
+        track_uri       = track.getURI().decode("utf-8")
         title           = track.getName().decode("utf-8")
         image_url       = self.select_image(track.getAlbumCovers())
         track_duration  = int(track.getDuration()) - 500
@@ -689,8 +689,8 @@ class SpotifyPlugin(object):
         image_url = self.select_image(album.getCovers())
 
         return AlbumObject(
-            key=route_path('album', album.getURI()),
-            rating_key=album.getURI(),
+            key=route_path('album', album.getURI().decode("utf-8")),
+            rating_key=album.getURI().decode("utf-8"),
 
             title=title,
             artist=album.getArtists(nameOnly=True),
@@ -701,14 +701,12 @@ class SpotifyPlugin(object):
             art=function_path('image.png', uri=image_url),
             thumb=function_path('image.png', uri=image_url),
         )
-
+    
     def create_playlist_object(self, playlist):
-        username  = playlist.getURI().replace("spotify:user:", "")
-        username  = username[0:username.index(":")]
-
-        uri       = urllib.quote_plus(playlist.getURI().encode('utf8')).replace("%3A", ":")
-        name      = playlist.getName().decode("utf-8") + ": " + playlist.getDescription().decode("utf-8")
-        image_url = self.select_image(playlist.getImages())
+        username    = playlist.getUsername().decode("utf-8")        
+        uri         = urllib.quote_plus(playlist.getURI().encode('utf8')).replace("%3A", ":").decode("utf-8")
+        name        = playlist.getName().decode("utf-8") + ": " + playlist.getDescription().decode("utf-8")
+        image_url   = self.select_image(playlist.getImages())
 
         return AlbumObject(
             key=route_path('playlist', uri),
@@ -725,8 +723,8 @@ class SpotifyPlugin(object):
     def create_artist_object(self, artist):
         image_url = self.select_image(artist.getPortraits())        
         return AlbumObject(
-                key=route_path('artist', artist.getURI()),
-                rating_key=artist.getURI(),
+                key=route_path('artist', artist.getURI().decode("utf-8")),
+                rating_key=artist.getURI().decode("utf-8"),
 
                 title=artist.getName().decode("utf-8"),
                 source_title='Spotify',
@@ -750,13 +748,19 @@ class SpotifyPlugin(object):
 
     def add_track_to_directory(self, track, oc):
         if not self.client.is_track_playable(track):
-            Log("Ignoring unplayable track: %s" % track.name())
+            Log("Ignoring unplayable track: %s" % track.getName())
             return
+
+        track_uri = track.getURI().decode("utf-8")
+        if not self.client.is_track_uri_valid(track_uri):
+            Log("Ignoring unplayable track: %s, invalid uri: %s" % (track.getName(), track_uri))
+            return
+
         oc.add(self.create_track_object(track))
 
     def add_album_to_directory(self, album, oc):
         if not self.client.is_album_playable(album):
-            Log("Ignoring unplayable album: %s" % album.name())
+            Log("Ignoring unplayable album: %s" % album.getName())
             return
         oc.add(self.create_album_object(album))
 
@@ -766,4 +770,3 @@ class SpotifyPlugin(object):
 
     def add_playlist_to_directory(self, playlist, oc):
         oc.add(self.create_playlist_object(playlist))
-
