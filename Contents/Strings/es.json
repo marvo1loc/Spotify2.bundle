@@ -32,5 +32,5 @@
     "MSG_BODY_PLAYIST_ERROR": "No se encontro el detalle para la lista seleccionada",
 
     "MSG_FMT_DID_YOU_MEAN": "Quieres decir '%s'?",
-    "MSG_FMT_NO_RESULTS": "Sin coincidencias para '%s'..."
+    "MSG_FMT_NO_RESULTS": "Sin resultados para '%s'..."
 }

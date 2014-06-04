@@ -178,7 +178,7 @@ class SpotifyArtist(SpotifyMetadataObject):
             return track_objs
 
         if len(track_objs) == 0:
-            return None
+            return track_objs
 
         return self.spotify.objectFromInternalObj("track", track_objs)
 

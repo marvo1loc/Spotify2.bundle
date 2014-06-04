@@ -509,18 +509,24 @@ class SpotifyPlugin(object):
         """ Browse an artist.
         :param uri:            The Spotify URI of the artist to browse.
         """
-        artist = self.client.get(uri)        
-        oc = ObjectContainer(
-            title2=artist.getName().decode("utf-8"),
-            content=ContainerContent.Tracks,
-            view_group=ViewMode.Tracks
-        )
-
-        for track in artist.getTracks():
-            self.add_track_to_directory(track, oc)
-
-        return oc        
-
+        oc          = None
+        artist      = self.client.get(uri)        
+        top_tracks  = artist.getTracks()
+        
+        if top_tracks:
+            oc = ObjectContainer(
+                title2=artist.getName().decode("utf-8"),
+                content=ContainerContent.Tracks,
+                view_group=ViewMode.Tracks
+            )
+            for track in artist.getTracks():
+                self.add_track_to_directory(track, oc)
+        else:
+            oc = MessageContainer(
+                header=L("MSG_TITLE_NO_RESULTS"),
+                message=localized_format("MSG_FMT_NO_RESULTS", artist.getName().decode("utf-8"))
+            )
+        return oc
     #
     # ALBUM DETAIL
     #
@@ -760,6 +766,4 @@ class SpotifyPlugin(object):
 
     def add_playlist_to_directory(self, playlist, oc):
         oc.add(self.create_playlist_object(playlist))
-
-
 
