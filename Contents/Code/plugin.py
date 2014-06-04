@@ -19,12 +19,22 @@ class SpotifyPlugin(object):
         self.play_lock = Lock()
         self.restart_marker = Event()
         self.current_track = None
-        self.play_count = 0
+
+        Dict.Reset()
+        Dict['play_count']             = 0
+        Dict['last_restart']           = 0
+        Dict['play_restart_scheduled'] = False
+        Dict['schedule_restart_each']  = 5*60   # restart each  X minutes
+        Dict['play_restart_each']      = 3      # restart each  X plays
+        Dict['play_restart_after']     = 2      # restart after X seconds when play count has been reached
 
         self.start()
 
         self.session = requests.session()
         self.session_cached = CacheControl(self.session)
+
+        # if a restart happened, then we should't do it again
+        Thread.CreateTimer(Dict['schedule_restart_each'], self.scheduled_restart, globalize=True)
 
 
     @property
@@ -39,9 +49,27 @@ class SpotifyPlugin(object):
     def region(self):
         return Prefs["region"]
 
-    def preventive_restart(self):
+    def preventive_play_restart(self):
         with self.restart_lock:
             self.start()
+            Dict['play_restart_scheduled'] = False
+
+    def scheduled_restart(self):
+        with self.restart_lock:
+            Log("Starting scheduled restart")
+            
+            now  = time.time()
+            diff = now - Dict['last_restart']
+            Log.Debug("Distance in seconds from prev restart is: %s. Difference needed: %s" % (str(diff), str(Dict['schedule_restart_each'])))
+            
+            # if a restart happened, then we should't do it again
+            if diff >= Dict['schedule_restart_each']:
+                self.start()
+
+            # Schedule the new timer
+            new_time = Dict['schedule_restart_each'] - diff if diff < Dict['schedule_restart_each'] else Dict['schedule_restart_each']
+            Log.Debug("Scheduling next restart in %s seconds" % str(new_time))
+            Thread.CreateTimer(new_time, self.scheduled_restart, globalize=True)
 
     @check_restart
     def preferences_updated(self):
@@ -57,7 +85,6 @@ class SpotifyPlugin(object):
         
         self.restart_marker.clear()
         self.current_track = None
-        self.play_count = 0
 
         result = False
         if self.client:            
@@ -66,7 +93,11 @@ class SpotifyPlugin(object):
             self.client = SpotifyClient(self.username, self.password, self.region)
             result = True
         
+        Dict['play_count']   = 0
+        Dict['last_restart'] = time.time()
+
         self.restart_marker.set()
+
         return result
 
     @check_restart
@@ -105,10 +136,11 @@ class SpotifyPlugin(object):
                 Log.Error("Play track couldn't be obtained. This is very bad :-(")
                 return None
             
-            self.play_count = self.play_count + 1
-            if self.play_count >= 3:
-                Log.Debug('Scheduling preventive restart (%s plays)' % str(self.play_count))
-                Thread.CreateTimer(2, self.preventive_restart, globalize=True)
+            Dict['play_count'] = Dict['play_count'] + 1
+            if Dict['play_count'] >= Dict['play_restart_each'] and not Dict['play_restart_scheduled']:
+                Log.Debug('Scheduling preventive restart (%s plays)' % str(Dict['play_count']))
+                Thread.CreateTimer(Dict['play_restart_after'], self.preventive_play_restart, globalize=True)
+                Dict['play_restart_scheduled'] = True
 
             return Redirect(track_url)
     
