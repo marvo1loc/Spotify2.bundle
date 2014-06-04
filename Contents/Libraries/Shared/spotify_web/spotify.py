@@ -92,7 +92,7 @@ class Logging():
 
 
 class WrapAsync():
-    timeout = 15
+    timeout = 18
 
     def __init__(self, callback, func, *args):
         self.marker = Event()
@@ -968,7 +968,7 @@ class SpotifyAPI():
             self.heartbeat()
             self.heartbeat_marker.wait(timeout=45)
 
-    def connect(self, username, password, timeout=15):
+    def connect(self, username, password, timeout=18):
         if self.connecting:
             Logging.error("Already connecting, nothing to do!")
             return False
