@@ -77,7 +77,7 @@ class SpotifyClient(object):
         for item_json in pl_json['items']:
             playlist_uri  = item_json['playlist']['uri']
             playlist_desc = item_json['playlist']['description']
-            playlist_img  = item_json['playlist']['image']
+            playlist_img  = item_json['playlist']['image'] if 'image' in item_json['playlist'] else None
             
             uri_parts = playlist_uri.split(':')
             if len(uri_parts) < 2:
@@ -95,7 +95,8 @@ class SpotifyClient(object):
         
         for pl in playlists:
             pl.description   = playlist_descs[pl.getURI()]
-            pl.image_id = playlist_imgs[pl.getURI()]
+            if playlist_imgs[pl.getURI()]:
+                pl.image_id = playlist_imgs[pl.getURI()]
         
         return playlists
 
@@ -109,7 +110,7 @@ class SpotifyClient(object):
         for item_json in pl_json['items']:
             playlist_uri  = item_json['playlist']['uri']
             playlist_desc = item_json['playlist']['description']
-            playlist_img  = item_json['playlist']['image']
+            playlist_img  = item_json['playlist']['image'] if 'image' in item_json['playlist'] else None
             
             uri_parts = playlist_uri.split(':')
             if len(uri_parts) < 2:
@@ -127,7 +128,8 @@ class SpotifyClient(object):
         
         for pl in playlists:
             pl.description   = playlist_descs[pl.getURI()]
-            pl.image_id = playlist_imgs[pl.getURI()]
+            if playlist_imgs[pl.getURI()]:
+                pl.image_id = playlist_imgs[pl.getURI()] 
         
         return playlists
 
