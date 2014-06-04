@@ -100,47 +100,31 @@ def authenticated(func):
         def __call__(self, *args, **kwargs):
             plugin = args[0]
             client = plugin.client
-
-            plugin.restart_marker.wait(timeout=30)
-            denied_message = self.access_denied_message(plugin, client)
-            if denied_message:
-                return denied_message
-            else:
-                return func(*args, **kwargs)
+            plugin.start_marker.wait(timeout=30)
+            if not client or not client.is_logged_in():
+                return self.access_denied_message(plugin, client)
+            return func(*args, **kwargs)
 
         def access_denied_message(self, plugin, client):
-            if client and client.is_logged_in():
-                return False;
-
             if not client:
                 return MessageContainer(
                     header=L("MSG_TITLE_MISSING_LOGIN"),
                     message=L("MSG_BODY_MISSING_LOGIN")
                 )
-            elif not client.spotify.api.ws or client.spotify.api.disconnecting:
+            elif not client.spotify.api.ws:
                 return MessageContainer(
                     header=L("MSG_TITLE_LOGIN_IN_PROGRESS"),
                     message=L("MSG_BODY_LOGIN_IN_PROGRESS")
                 )
             else:
-                # lock the restart
-                with plugin.restart_lock:
-                    # check whats the real status after the lock
-                    if client.is_logged_in():
-                        return False
-                    elif not client.spotify.api.ws or client.spotify.api.disconnecting:
-                        return MessageContainer(
-                            header=L("MSG_TITLE_LOGIN_IN_PROGRESS"),
-                            message=L("MSG_BODY_LOGIN_IN_PROGRESS")
-                        )
-                    else:
-                        # Trigger a re-connect
-                        Log.Warn('Connection failed, reconnecting...')
-                        plugin.start()
-                        return MessageContainer(
-                            header=L("MSG_TITLE_LOGIN_FAILED"),
-                            message=L("MSG_TITLE_LOGIN_FAILED")
-                        )
+                # Trigger a re-connect
+                Log.Warn('Connection failed, reconnecting...')
+                plugin.start()
+
+                return MessageContainer(
+                    header=L("MSG_TITLE_LOGIN_FAILED"),
+                    message=L("MSG_TITLE_LOGIN_FAILED")
+                )
 
     return decorator()
 
@@ -160,7 +144,7 @@ def check_restart(func):
 
         def __call__(self, *args, **kwargs):
             plugin = args[0]
-            plugin.restart_marker.wait(timeout=30)
+            plugin.start_marker.wait(timeout=30)
             return func(*args, **kwargs)
     
     return decorator()

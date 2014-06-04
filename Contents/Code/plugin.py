@@ -4,7 +4,7 @@ from utils import localized_format, authenticated, ViewMode, Track, TrackMetadat
 
 from cachecontrol import CacheControl
 from spotify_web.friendly import SpotifyArtist, SpotifyAlbum, SpotifyTrack
-from threading import Lock, Event
+from threading import RLock, Event, Semaphore
 
 import locale
 import requests
@@ -15,17 +15,18 @@ class SpotifyPlugin(object):
     def __init__(self):
         self.client = None
         self.server = None
-        self.restart_lock = Lock()
-        self.play_lock = Lock()
-        self.restart_marker = Event()
-        self.current_track = None
+        self.play_lock      = RLock()
+        self.metadata_lock  = RLock()
+        self.start_lock     = Semaphore(1)
+        self.start_marker   = Event()
+        self.current_track  = None
 
         Dict.Reset()
         Dict['play_count']             = 0
         Dict['last_restart']           = 0
         Dict['play_restart_scheduled'] = False
         Dict['schedule_restart_each']  = 5*60   # restart each  X minutes
-        Dict['play_restart_each']      = 3      # restart each  X plays
+        Dict['play_restart_each']      = 2      # restart each  X plays
         Dict['play_restart_after']     = 2      # restart after X seconds when play count has been reached
 
         self.start()
@@ -50,26 +51,24 @@ class SpotifyPlugin(object):
         return Prefs["region"]
 
     def preventive_play_restart(self):
-        with self.restart_lock:
-            self.start()
-            Dict['play_restart_scheduled'] = False
+        self.start()
+        Dict['play_restart_scheduled'] = False
 
     def scheduled_restart(self):
-        with self.restart_lock:
-            Log("Starting scheduled restart")
-            
-            now  = time.time()
-            diff = now - Dict['last_restart']
-            Log.Debug("Distance in seconds from prev restart is: %s. Difference needed: %s" % (str(diff), str(Dict['schedule_restart_each'])))
-            
-            # if a restart happened, then we should't do it again
-            if diff >= Dict['schedule_restart_each']:
-                self.start()
+        Log("Starting scheduled restart")
+        
+        now  = time.time()
+        diff = now - Dict['last_restart']
+        Log.Debug("Distance in seconds from prev restart is: %s. Difference needed: %s" % (str(diff), str(Dict['schedule_restart_each'])))
+        
+        # if a restart happened, then we should't do it again
+        if diff >= Dict['schedule_restart_each']:
+            self.start()
 
-            # Schedule the new timer
-            new_time = Dict['schedule_restart_each'] - diff if diff < Dict['schedule_restart_each'] else Dict['schedule_restart_each']
-            Log.Debug("Scheduling next restart in %s seconds" % str(new_time))
-            Thread.CreateTimer(new_time, self.scheduled_restart, globalize=True)
+        # Schedule the new timer
+        new_time = Dict['schedule_restart_each'] - diff if diff < Dict['schedule_restart_each'] else Dict['schedule_restart_each']
+        Log.Debug("Scheduling next restart in %s seconds" % str(new_time))
+        Thread.CreateTimer(new_time, self.scheduled_restart, globalize=True)
 
     @check_restart
     def preferences_updated(self):
@@ -82,23 +81,31 @@ class SpotifyPlugin(object):
         if not self.username or not self.password:
             Log("Username or password not set: not logging in")
             return False
-        
-        self.restart_marker.clear()
-        self.current_track = None
 
-        result = False
-        if self.client:            
-            result = self.client.restart(self.username, self.password, self.region)
-        else:
-            self.client = SpotifyClient(self.username, self.password, self.region)
-            result = True
-        
-        Dict['play_count']   = 0
-        Dict['last_restart'] = time.time()
+        can_start = self.start_lock.acquire(blocking=False)
+        try:
+            # If there is a start in process, just wait until it finishes, but don't raise another one
+            if not can_start:
+                Log.Debug("Start already in progress, waiting it finishes to return")
+                self.start_lock.acquire()
+            else:
+                Log.Debug("Start triggered, entering private section")
+                self.start_marker.clear()
+                
+                if self.client:            
+                    self.client.restart(self.username, self.password, self.region)
+                else:
+                    self.client = SpotifyClient(self.username, self.password, self.region)
 
-        self.restart_marker.set()
+                self.current_track   = None
+                Dict['play_count']   = 0
+                Dict['last_restart'] = time.time()
+                self.start_marker.set()
+                Log.Debug("Start finished, leaving private section")
+        finally:
+            self.start_lock.release()
 
-        return result
+        return self.client and self.client.is_logged_in()
 
     @check_restart
     def play(self, uri):
@@ -117,20 +124,11 @@ class SpotifyPlugin(object):
             # If first request failed, trigger re-connection to spotify
             retry_num = 0 
             while not track_url and retry_num < 3:
-                Log.Info('First get_track_url failed')
-                
-                with self.restart_lock:
-                    Log.Debug('Acquired restart_lock in play for track: %s' % uri)
-                    
+                Log.Info('get_track_url failed, re-connecting to spotify...')
+                time.sleep(retry_num*0.5) # Wait some time based on number of failures
+                if self.start():
                     track_url = self.get_track_url(uri)
-                    if not track_url:
-                        Log.Info('get_track_url failed again, re-connecting to spotify...')
-                        time.sleep(retry_num*0.5) # Wait some time based on number of failures
-                        self.start()
-                        track_url = self.get_track_url(uri)
-                        retry_num = retry_num + 1
-                    
-                    Log.Debug('Released restart_lock in play, for track: %s' % uri)
+                retry_num = retry_num + 1
 
             if track_url == False:
                 Log.Error("Play track couldn't be obtained. This is very bad :-(")
@@ -172,33 +170,27 @@ class SpotifyPlugin(object):
             Log("Metadata callback invoked with NULL URI")
             return
   
-        track_metadata = self.get_track_metadata(uri)
-        
-        # If first request failed, trigger re-connection to spotify
-        retry_num = 0 
-        while not track_metadata and retry_num < 3:
-            Log.Info('First get_track_metadata failed')
+        # Process metadata request one by one to avoid errors
+        with self.metadata_lock:
+
+            track_metadata = self.get_track_metadata(uri)
             
-            with self.restart_lock:
-                Log.Debug('Acquired restart_lock in metadata for track: %s' % uri)
-                
-                track_metadata = self.get_track_metadata(uri)
-                if not track_metadata:
-                    Log.Info('get_track_metadata failed again, re-connecting to spotify...')
-                    time.sleep(retry_num*0.5) # Wait some time based on number of failures
-                    self.start()
+            # If first request failed, trigger re-connection to spotify
+            retry_num = 0 
+            while not track_metadata and retry_num < 3:
+                Log.Info('get_track_metadata failed, re-connecting to spotify...')
+                time.sleep(retry_num*0.5) # Wait some time based on number of failures
+                if self.start():
                     track_metadata = self.get_track_metadata(uri)
-                    retry_num = retry_num + 1
+                retry_num = retry_num + 1
 
-                Log.Debug('Released restart_lock in metadata, for track: %s' % uri)
-
-        if track_metadata:
-            track_object = self.create_track_object_from_metatada(track_metadata)
-            oc = ObjectContainer()
-            oc.add(track_object)
-            return oc
-        else:
-            return ObjectContainer()
+            if track_metadata:
+                track_object = self.create_track_object_from_metatada(track_metadata)
+                oc = ObjectContainer()
+                oc.add(track_object)
+                return oc
+            else:
+                return ObjectContainer()
 
     def get_track_metadata(self, track_uri):
         if not track_uri:
