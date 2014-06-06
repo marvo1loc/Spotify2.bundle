@@ -10,11 +10,6 @@
     "label": "PREF_PASSWORD",
     "default": ""
 }, {
-    "id": "region",
-    "type": "text",
-    "label": "PREF_REGION",
-    "default": "ar"
-}, {
     "id": "displayAlbumYear",
     "type": "bool",
     "label": "PREF_SHOWALBUMYEAR",
