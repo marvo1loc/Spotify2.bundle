@@ -575,8 +575,8 @@ class SpotifyPlugin(object):
             mixed_parents=True
         )
 
-        for track in pl.getTracks():
-            self.add_track_to_directory(track, oc)
+        for x, track in enumerate(pl.getTracks()):
+            self.add_track_to_directory(track, oc, index=x)
 
         return oc
 
@@ -622,7 +622,7 @@ class SpotifyPlugin(object):
     #
     # Create objects
     #
-    def create_track_object(self, track):
+    def create_track_object(self, track, index=None):
         if not track:
             return None
 
@@ -636,13 +636,16 @@ class SpotifyPlugin(object):
         track_artists   = track.getArtists(nameOnly=True).decode("utf-8")
         metadata = TrackMetadata(title, image_url, track_uri, track_duration, track_number, track_album, track_artists)
                 
-        return self.create_track_object_from_metatada(metadata)
+        return self.create_track_object_from_metatada(metadata, index=index)
 
-    def create_track_object_from_metatada(self, metadata):
+    def create_track_object_from_metatada(self, metadata, index=None):
         if not metadata:
             return None
 
         uri = metadata.uri
+        rating_key = uri
+        if index is not None:
+            rating_key = '%s::%s' % (uri, index)
 
         track_obj = TrackObject(
             items=[
@@ -658,8 +661,7 @@ class SpotifyPlugin(object):
             ],
 
             key = route_path('metadata', uri),
-            
-            rating_key = uri,
+            rating_key = rating_key,
 
             title  = metadata.title,
             album  = metadata.album,
@@ -744,7 +746,7 @@ class SpotifyPlugin(object):
             )
         )
 
-    def add_track_to_directory(self, track, oc):
+    def add_track_to_directory(self, track, oc, index = None):
         if not self.client.is_track_playable(track):
             Log("Ignoring unplayable track: %s" % track.getName())
             return
@@ -754,7 +756,7 @@ class SpotifyPlugin(object):
             Log("Ignoring unplayable track: %s, invalid uri: %s" % (track.getName(), track_uri))
             return
 
-        oc.add(self.create_track_object(track))
+        oc.add(self.create_track_object(track, index=index))
 
     def add_album_to_directory(self, album, oc):
         if not self.client.is_album_playable(album):
