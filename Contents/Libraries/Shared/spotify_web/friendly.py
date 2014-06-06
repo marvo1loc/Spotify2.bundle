@@ -303,7 +303,7 @@ class SpotifyPlaylist(SpotifyObject):
 
     def getImages(self):
         if self.image_id != None:
-            return Spotify.imagesFromId(self.image_id, 300)
+            return Spotify.imagesFromId(self.image_id, 640)
         return None
 
     def rename(self, name):
@@ -604,7 +604,15 @@ class Spotify():
     def imagesFromArray(image_objs):
         images = {}
         for image_obj in image_objs:
-            size     = str(image_obj.width)
+            size = image_obj.width
+            if size <= 60:
+                size = 60
+            elif size <= 160:
+                size = 160
+            elif size <= 320:
+                size = 320
+            elif size <= 640:
+                size = 640
             image_id = SpotifyUtil.gid2id(image_obj.file_id)
             images[size] = Spotify.imagesFromId(image_id, size)[size]
         return images

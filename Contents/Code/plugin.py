@@ -216,12 +216,14 @@ class SpotifyPlugin(object):
         if images == None:
             return None
 
-        if images.get('640'):
-            return images['640']
-        elif images.get('300'):
-            return images['300']
-        elif len(images.keys()) > 0:
-            return images[images.keys()[0]]
+        if images.get(640):
+            return images[640]
+        elif images.get(320):
+            return images[320]
+        elif images.get(160):
+            return images[160]
+        elif images.get(60):
+            return images[60]
         
         Log.Info('Unable to select image, available sizes: %s' % images.keys())
         return None
