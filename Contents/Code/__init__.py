@@ -48,10 +48,25 @@ def metadata(**kwargs):
 def playlists(**kwargs):
     return plugin_callback(SpotifyPlugin.playlists, kwargs)
 
-
 @route(ROUTEBASE + 'starred')
 def starred(**kwargs):
     return plugin_callback(SpotifyPlugin.starred, kwargs)
+
+@route(ROUTEBASE + 'albums')
+def albums(**kwargs):
+    return plugin_callback(SpotifyPlugin.albums, kwargs)
+
+@route(ROUTEBASE + 'artists')
+def artists(**kwargs):
+    return plugin_callback(SpotifyPlugin.artists, kwargs)
+
+@route(ROUTEBASE + 'artists/{uri}/top_tracks')
+def artist_top_tracks(**kwargs):
+    return plugin_callback(SpotifyPlugin.artist_top_tracks, kwargs)
+
+@route(ROUTEBASE + 'artists/{uri}/albums')
+def artist_albums(**kwargs):
+    return plugin_callback(SpotifyPlugin.artist_albums, kwargs)
 
 
 @route(ROUTEBASE + 'search')

@@ -65,9 +65,12 @@ class SpotifyPlugin(object):
                 self.current_track.track.getDuration()
             )
 
-        track = self.client.get(uri)
+        track_url = self.get_track_url(uri)
+        if track_url == False:
+            Log("Play track couldn't be obtained :-(")
+            return None
 
-        return Redirect(self.get_track_url(track))
+        return Redirect(track_url)
 
     def get_track_url(self, track):
         if not track:
@@ -90,7 +93,6 @@ class SpotifyPlugin(object):
         self.current_track = None
 
         # First try get track url
-        self.client.spotify.api.send_track_event(track.getID(), 'play', 0)
         track_url = track.getFileURL(retries=1)
 
         # If first request failed, trigger re-connection to spotify
@@ -105,7 +107,6 @@ class SpotifyPlugin(object):
             track.spotify = self.client.spotify
 
             Log.Info('Fetching track url...')
-            self.client.spotify.api.send_track_event(track.getID(), 'play', 0)
             track_url = track.getFileURL(retries=1)
 
         # Finished
@@ -126,7 +127,9 @@ class SpotifyPlugin(object):
             return images['640']
         elif images.get('300'):
             return images['300']
-
+        elif len(images.keys()) > 0:
+            return images[images.keys()[0]]
+        
         Log.Info('Unable to select image, available sizes: %s' % images.keys())
         return None
 
@@ -169,6 +172,26 @@ class SpotifyPlugin(object):
 
         :param uri:            The Spotify URI of the artist to browse.
         """
+        return ObjectContainer(
+            objects=[
+                DirectoryObject(
+                    key  =Callback(self.artist_top_tracks, uri=uri),
+                    title=L("MENU_TOP_TRACKS"),
+                    thumb=R("icon-default.png")
+                ),
+                DirectoryObject(
+                    key  =Callback(self.artist_albums, uri=uri),
+                    title=L("MENU_ALBUMS"),
+                    thumb=R("icon-default.png")
+                )
+            ],
+        )
+
+    @authenticated
+    def artist_albums(self, uri):
+        """ Browse an artist.
+        :param uri:            The Spotify URI of the artist to browse.
+        """
         artist = self.client.get(uri)
 
         oc = ObjectContainer(
@@ -180,6 +203,23 @@ class SpotifyPlugin(object):
             self.add_album_to_directory(album, oc)
 
         return oc
+    
+    @authenticated
+    def artist_top_tracks(self, uri):
+        """ Browse an artist.
+        :param uri:            The Spotify URI of the artist to browse.
+        """
+        artist = self.client.get(uri)        
+        oc = ObjectContainer(
+            title2=artist.getName().decode("utf-8"),
+            content=ContainerContent.Tracks,
+            view_group=ViewMode.Tracks
+        )
+
+        for track in artist.getTracks():
+            self.add_track_to_directory(track, oc)
+
+        return oc        
 
     @authenticated
     def album(self, uri):
@@ -214,6 +254,40 @@ class SpotifyPlugin(object):
 
         for playlist in playlists:
             self.add_playlist_to_directory(playlist, oc)
+
+        return oc
+
+    @authenticated
+    def albums(self):
+        Log("albums")
+
+        oc = ObjectContainer(
+            title2=L("MENU_ALBUMS"),
+            content=ContainerContent.Albums,
+            view_group=ViewMode.Albums
+        )
+        
+        albums = self.client.get_my_albums()
+
+        for album in albums:
+            self.add_album_to_directory(album, oc)
+
+        return oc
+
+    @authenticated
+    def artists(self):
+        Log("artists")
+
+        oc = ObjectContainer(
+            title2=L("MENU_ARTISTS"),
+            content=ContainerContent.Artists,
+            view_group=ViewMode.Artists
+        )
+        
+        artists = self.client.get_my_artists()
+
+        for artist in artists:
+            self.add_artist_to_directory(artist, oc)
 
         return oc
 
@@ -284,6 +358,16 @@ class SpotifyPlugin(object):
                     title=L("MENU_PLAYLISTS"),
                     thumb=R("icon-default.png")
                 ),
+                DirectoryObject(
+                    key=route_path('albums'),
+                    title=L("MENU_ALBUMS"),
+                    thumb=R("icon-default.png")
+                ),
+                DirectoryObject(
+                    key=route_path('artists'),
+                    title=L("MENU_ARTISTS"),
+                    thumb=R("icon-default.png")
+                ),                
                 DirectoryObject(
                     key=route_path('starred'),
                     title=L("MENU_STARRED"),

@@ -68,3 +68,15 @@ class SpotifyClient(object):
     def get_starred(self):
         """ Return the user's starred tracks"""
         return self.get('spotify:user:%s:starred' % self.username)
+
+    #
+    # My Music
+    #
+
+    def get_my_albums(self):
+        """ Return the user's albums"""
+        return self.spotify.getMyMusic(type="albums")
+
+    def get_my_artists(self):
+        """ Return the user's artists"""
+        return self.spotify.getMyMusic(type="artists")
