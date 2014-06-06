@@ -705,8 +705,10 @@ class SpotifyPlugin(object):
     def create_playlist_object(self, playlist):
         username    = playlist.getUsername().decode("utf-8")        
         uri         = urllib.quote_plus(playlist.getURI().encode('utf8')).replace("%3A", ":").decode("utf-8")
-        name        = playlist.getName().decode("utf-8") + ": " + playlist.getDescription().decode("utf-8")
         image_url   = self.select_image(playlist.getImages())
+        name        = playlist.getName().decode("utf-8")
+        if playlist.getDescription() != None and len(playlist.getDescription()) > 0:
+            name = name + ": " + playlist.getDescription().decode("utf-8")
 
         return AlbumObject(
             key=route_path('playlist', uri),

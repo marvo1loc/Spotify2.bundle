@@ -2,8 +2,9 @@ from functools import partial
 from threading import Thread, Lock
 from Queue import Queue
 
-from .spotify import SpotifyAPI, SpotifyUtil
+from .spotify import SpotifyAPI, SpotifyUtil, Logging
 from .search import SpotifySearch
+from .tunigoapi import Tunigo
 
 # from spotify_web.proto import mercury_pb2, metadata_pb2
 
@@ -255,12 +256,14 @@ class SpotifyPlaylist(SpotifyObject):
     uri_type = "playlist"
     refs = []
 
-    def __init__(self, spotify, uri):
+    def __init__(self, spotify, uri, obj=None):
+        if obj is not None:
+            self.obj = obj
+        else:
+            self.obj = spotify.api.playlist_request(uri)
+
         self.spotify = spotify
-        self.obj = spotify.api.playlist_request(uri)
         self.uri = uri
-        self.description = self.getName()
-        self.image_id = None
         SpotifyPlaylist.refs.append(self)
 
     def __getitem__(self, index):
@@ -299,12 +302,16 @@ class SpotifyPlaylist(SpotifyObject):
         return "Starred" if self.getID() == "starred" else self.obj.attributes.name
 
     def getDescription(self):
-        return self.description
+        return self.obj.attributes.description if self.obj != None and self.obj.attributes.description != None else ""
 
     def getImages(self):
-        if self.image_id != None:
-            return Spotify.imagesFromId(self.image_id, 640)
-        return None
+        images = {}
+        if self.obj != None and self.obj.attributes.picture != None:            
+            size  = 640
+            image_url = Spotify.imageFromGid(self.obj.attributes.picture, size)
+            if image_url != None:
+                images[size] = image_url
+        return images
 
     def rename(self, name):
         ret = self.spotify.api.rename_playlist(self.getURI(), name)
@@ -428,6 +435,7 @@ class Spotify():
         self.global_lock = Lock()
         self.api = SpotifyAPI(log_level=log_level)
         self.api.connect(username, password)
+        self.tunigo = Tunigo(region=self.api.country)
 
     def logged_in(self):
         return self.api.is_logged_in and not self.api.disconnecting
@@ -489,6 +497,26 @@ class Spotify():
     def getRegionToplist(self, toplist_content_type="track", region=None):
         return SpotifyToplist(self, toplist_content_type, "region", None, region)
 
+    def getFeaturedPlaylists(self):
+        try:
+            pl_json = self.tunigo.getFeaturedPlaylists()
+            return self.parse_tunigo_playlists(pl_json)
+        except Exception, e:
+            print "ERROR: " + str(e)
+
+    def getTopPlaylists(self):
+        pl_json = self.tunigo.getTopPlaylists()
+        return self.parse_tunigo_playlists(pl_json)
+
+    def getNewReleases(self):
+        al_json = self.tunigo.getNewReleases()
+
+        album_uris  = []
+        for item_json in al_json['items']:
+            album_uris.append(item_json['release']['uri'])
+
+        return self.objectFromURI(album_uris, asArray=True)
+
     def search(self, query, query_type="all", max_results=50, offset=0):
         return SpotifySearch(self, query, query_type=query_type, max_results=max_results, offset=offset)
 
@@ -527,7 +555,8 @@ class Spotify():
                 return [] if asArray else None
             elif uri_type == "playlist":
                 if len(uris) == 1:
-                    results = [SpotifyPlaylist(self, uri=uris[0])]
+                    obj = self.api.playlist_request(uris[0])
+                    results = [SpotifyPlaylist(self, uri=uris[0], obj=obj)] if False != obj else []
                 else:
                     thread_results = {}
                     jobs = []
@@ -535,7 +564,9 @@ class Spotify():
                         jobs.append((self, uris[index], thread_results, index))
 
                     def work_function(spotify, uri, results, index):
-                        results[index] = SpotifyPlaylist(spotify, uri=uri)
+                        obj = self.api.playlist_request(uri)
+                        if False != obj:
+                            results[index] = SpotifyPlaylist(self, uri=uri, obj=obj)
 
                     Spotify.doWorkerQueue(work_function, jobs)
 
@@ -583,6 +614,23 @@ class Spotify():
     def is_track_uri_valid(self, track_uri):
         return SpotifyUtil.is_track_uri_valid(track_uri)
 
+    def parse_tunigo_playlists(self, pl_json):
+        playlists = []
+        for item_json in pl_json['items']:
+            playlist_uri  = item_json['playlist']['uri']
+            
+            uri_parts = playlist_uri.split(':')
+            if len(uri_parts) < 2:
+                continue
+
+            # TODO support playlist folders properly
+            if uri_parts[1] in ['start-group', 'end-group']:
+                continue
+
+            playlists.append(playlist_uri)
+
+        return self.objectFromURI(playlists, asArray=True)
+
     @staticmethod
     def doWorkerQueue(work_function, args, worker_thread_count=5):
         def worker():
@@ -613,12 +661,18 @@ class Spotify():
                 size = 320
             elif size <= 640:
                 size = 640
-            image_id = SpotifyUtil.gid2id(image_obj.file_id)
-            images[size] = Spotify.imagesFromId(image_id, size)[size]
+            
+            image_url = Spotify.imageFromGid(image_obj.file_id, size)
+            if image_url != None:
+                images[size] = image_url
+
         return images
 
     @staticmethod
-    def imagesFromId(image_id, size):
-        images = {}
-        images[size] = "https://d3rt1990lpmkn.cloudfront.net/" + str(size) + "/" + str(image_id)
-        return images
+    def imageFromGid(image_gid, size):
+        image_id = SpotifyUtil.gid2id(image_gid)
+        if image_id == "00000000000000000000000000000000":
+            image_url = None
+        else:
+            image_url = "https://d3rt1990lpmkn.cloudfront.net/" + str(size) + "/" + str(image_id)
+        return image_url

@@ -2,8 +2,6 @@ from settings import PLUGIN_ID
 
 from spotify_web.friendly import Spotify
 from spotify_web.spotify import Logging
-from tunigoapi import Tunigo
-
 
 class SpotifyClient(object):
     audio_buffer_size = 50
@@ -24,8 +22,6 @@ class SpotifyClient(object):
 
         self.username = username
         self.spotify = Spotify(username, password, log_level=3)
-        self.tunigo  = Tunigo(region=self.spotify.api.country)
-
 
     #
     # Public methods
@@ -63,83 +59,24 @@ class SpotifyClient(object):
         return True
 
     #
-    # Playlists
+    # Explore
     #
+
     def get_featured_playlists(self):
         """ Return the featured playlists"""
-        pl_json = self.tunigo.getFeaturedPlaylists()
-
-        playlist_uris  = []
-        playlist_descs = {}
-        playlist_imgs  = {}
-        for item_json in pl_json['items']:
-            playlist_uri  = item_json['playlist']['uri']
-            playlist_desc = item_json['playlist']['description']
-            playlist_img  = item_json['playlist']['image'] if 'image' in item_json['playlist'] else None
-            
-            uri_parts = playlist_uri.split(':')
-            if len(uri_parts) < 2:
-                continue
-
-            # TODO support playlist folders properly
-            if uri_parts[1] in ['start-group', 'end-group']:
-                continue
-            
-            playlist_uris.append(playlist_uri)
-            playlist_descs[playlist_uri]= playlist_desc
-            playlist_imgs[playlist_uri]= playlist_img
-            
-        playlists = self.spotify.objectFromURI(playlist_uris, asArray=True)
-        
-        for pl in playlists:
-            pl.description   = playlist_descs[pl.getURI()]
-            if playlist_imgs[pl.getURI()]:
-                pl.image_id = playlist_imgs[pl.getURI()]
-        
-        return playlists
+        return self.spotify.getFeaturedPlaylists()
 
     def get_top_playlists(self):
         """ Return the top playlists"""
-        pl_json = self.tunigo.getTopPlaylists()
-
-        playlist_uris  = []
-        playlist_descs = {}
-        playlist_imgs  = {}
-        for item_json in pl_json['items']:
-            playlist_uri  = item_json['playlist']['uri']
-            playlist_desc = item_json['playlist']['description']
-            playlist_img  = item_json['playlist']['image'] if 'image' in item_json['playlist'] else None
-            
-            uri_parts = playlist_uri.split(':')
-            if len(uri_parts) < 2:
-                continue
-
-            # TODO support playlist folders properly
-            if uri_parts[1] in ['start-group', 'end-group']:
-                continue
-            
-            playlist_uris.append(playlist_uri)
-            playlist_descs[playlist_uri]= playlist_desc
-            playlist_imgs[playlist_uri]= playlist_img
-            
-        playlists = self.spotify.objectFromURI(playlist_uris, asArray=True)
-        
-        for pl in playlists:
-            pl.description   = playlist_descs[pl.getURI()]
-            if playlist_imgs[pl.getURI()]:
-                pl.image_id = playlist_imgs[pl.getURI()] 
-        
-        return playlists
+        return self.spotify.getTopPlaylists()
 
     def get_new_releases(self):
         """ Return the top playlists"""
-        al_json = self.tunigo.getNewReleases()
-        album_uris  = []
-        for item_json in al_json['items']:
-            album_uris.append(item_json['release']['uri'])
-            
-        return self.spotify.objectFromURI(album_uris, asArray=True)
+        return self.spotify.getNewReleases()
 
+    #
+    # Playlists
+    #
 
     def get_playlists(self):
         """ Return the user's playlists"""
