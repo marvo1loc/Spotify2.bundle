@@ -11,7 +11,7 @@ from spotify_web.proto import mercury_pb2, metadata_pb2, playlist4changes_pb2,\
 
 
 class Logging():
-    log_level = 3
+    log_level = 1
 
     hooks = {}
 

@@ -22,10 +22,9 @@ class SpotifyClient(object):
         Logging.hook(1, Log.Warn)
         Logging.hook(0, Log.Error)
 
-        self.spotify = Spotify(username, password, log_level=3)
         self.username = username
-        
         self.tunigo  = Tunigo(region)
+        self.spotify = Spotify(username, password, log_level=3)
 
 
     #
@@ -35,8 +34,11 @@ class SpotifyClient(object):
     def is_logged_in(self):
         return self.spotify.logged_in()
 
+    def restart(self, username, password, region):
+        return self.spotify.restart(username, password)
+
     def shutdown(self):
-        self.spotify.api.shutdown()
+        self.spotify.shutdown()
 
     def search(self, query, query_type='all', max_results=50, offset=0):
         """ Execute a search
@@ -73,7 +75,7 @@ class SpotifyClient(object):
         for item_json in pl_json['items']:
             playlist_uri  = item_json['playlist']['uri']
             playlist_desc = item_json['playlist']['description']
-            playlist_img  = item_json['playlist']['image']
+            playlist_img  = item_json['playlist']['image'] if 'image' in item_json['playlist'] else None
             
             uri_parts = playlist_uri.split(':')
             if len(uri_parts) < 2:
@@ -91,7 +93,8 @@ class SpotifyClient(object):
         
         for pl in playlists:
             pl.description   = playlist_descs[pl.getURI()]
-            pl.image_id = playlist_imgs[pl.getURI()]
+            if playlist_imgs[pl.getURI()]:
+                pl.image_id = playlist_imgs[pl.getURI()]
         
         return playlists
 
@@ -105,7 +108,7 @@ class SpotifyClient(object):
         for item_json in pl_json['items']:
             playlist_uri  = item_json['playlist']['uri']
             playlist_desc = item_json['playlist']['description']
-            playlist_img  = item_json['playlist']['image']
+            playlist_img  = item_json['playlist']['image'] if 'image' in item_json['playlist'] else None
             
             uri_parts = playlist_uri.split(':')
             if len(uri_parts) < 2:
@@ -123,7 +126,8 @@ class SpotifyClient(object):
         
         for pl in playlists:
             pl.description   = playlist_descs[pl.getURI()]
-            pl.image_id = playlist_imgs[pl.getURI()]
+            if playlist_imgs[pl.getURI()]:
+                pl.image_id = playlist_imgs[pl.getURI()] 
         
         return playlists
 
@@ -157,3 +161,8 @@ class SpotifyClient(object):
         """ Return the user's artists"""
         return self.spotify.getMyMusic(type="artists")
 
+    #
+    #  Uri validation
+    #
+    def is_track_uri_valid(self, track_uri):
+        return self.spotify.is_track_uri_valid(track_uri)
