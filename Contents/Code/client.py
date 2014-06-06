@@ -9,7 +9,7 @@ class SpotifyClient(object):
     audio_buffer_size = 50
     user_agent = PLUGIN_ID
 
-    def __init__(self, username, password, region):
+    def __init__(self, username, password):
         """ Initializer
 
         :param username:       The username to connect to spotify with.
@@ -23,8 +23,8 @@ class SpotifyClient(object):
         Logging.hook(0, Log.Error)
 
         self.username = username
-        self.tunigo  = Tunigo(region)
         self.spotify = Spotify(username, password, log_level=3)
+        self.tunigo  = Tunigo(region=self.spotify.api.country)
 
 
     #
@@ -34,7 +34,7 @@ class SpotifyClient(object):
     def is_logged_in(self):
         return self.spotify.logged_in()
 
-    def restart(self, username, password, region):
+    def restart(self, username, password):
         return self.spotify.restart(username, password)
 
     def shutdown(self):

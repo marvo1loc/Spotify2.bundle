@@ -46,10 +46,6 @@ class SpotifyPlugin(object):
     def password(self):
         return Prefs["password"]
 
-    @property
-    def region(self):
-        return Prefs["region"]
-
     def preventive_play_restart(self):
         self.start()
         Dict['play_restart_scheduled'] = False
@@ -93,9 +89,9 @@ class SpotifyPlugin(object):
                 self.start_marker.clear()
                 
                 if self.client:            
-                    self.client.restart(self.username, self.password, self.region)
+                    self.client.restart(self.username, self.password)
                 else:
-                    self.client = SpotifyClient(self.username, self.password, self.region)
+                    self.client = SpotifyClient(self.username, self.password)
 
                 self.current_track   = None
                 Dict['play_count']   = 0
