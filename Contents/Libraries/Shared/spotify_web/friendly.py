@@ -305,13 +305,15 @@ class SpotifyPlaylist(SpotifyObject):
         return self.obj.attributes.description if self.obj != None and self.obj.attributes.description != None else ""
 
     def getImages(self):
-        images = {}
-        if self.obj != None and self.obj.attributes.picture != None:            
-            size  = 640
+        if self.obj != None and self.obj.attributes.picture != None:
+            images = {}
+            size  = 300
             image_url = Spotify.imageFromGid(self.obj.attributes.picture, size)
             if image_url != None:
                 images[size] = image_url
-        return images
+                return images
+        return None
+
 
     def rename(self, name):
         ret = self.spotify.api.rename_playlist(self.getURI(), name)
@@ -657,6 +659,8 @@ class Spotify():
                 size = 60
             elif size <= 160:
                 size = 160
+            elif size <= 300:
+                size = 300
             elif size <= 320:
                 size = 320
             elif size <= 640:
