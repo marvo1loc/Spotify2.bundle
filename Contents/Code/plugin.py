@@ -416,8 +416,8 @@ class SpotifyPlugin(object):
 
         starred = self.client.get_starred()
 
-        for track in starred.getTracks():
-            self.add_track_to_directory(track, oc)
+        for x, track in enumerate(starred.getTracks()):
+            self.add_track_to_directory(track, oc, index=x)
 
         return oc
 
@@ -672,7 +672,7 @@ class SpotifyPlugin(object):
             album  = metadata.album,
             artist = metadata.artists,
 
-            index    = metadata.number,
+            index    = index if index != None else metadata.number,
             duration = metadata.duration,
 
             source_title='Spotify',
