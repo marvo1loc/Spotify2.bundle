@@ -9,7 +9,6 @@ def localized_format(key, args):
 
 class ViewMode(object):
     Tracks              = "Tracks"
-    FeaturedPlaylists   = "FeaturedPlaylists"
     Playlists           = "Playlists"
     Albums              = "Albums"
     Artists             = "Artists"
@@ -18,7 +17,6 @@ class ViewMode(object):
     def AddModes(cls, plugin):
         plugin.AddViewGroup(cls.Tracks,             "List",     "songs")
         plugin.AddViewGroup(cls.Playlists,          "List",     "items")
-        plugin.AddViewGroup(cls.FeaturedPlaylists,  "List",     "items")
         plugin.AddViewGroup(cls.Albums,             "Albums",   "items")
         plugin.AddViewGroup(cls.Artists,            "List",     "items")
         #ViewModes 

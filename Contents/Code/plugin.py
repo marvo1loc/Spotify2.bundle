@@ -10,6 +10,7 @@ import locale
 import requests
 import urllib
 import time
+from random import randint
 
 class SpotifyPlugin(object):
     def __init__(self):
@@ -216,6 +217,8 @@ class SpotifyPlugin(object):
             return images[640]
         elif images.get(320):
             return images[320]
+        elif images.get(300):
+            return images[300]
         elif images.get(160):
             return images[160]
         elif images.get(60):
@@ -274,17 +277,17 @@ class SpotifyPlugin(object):
                 DirectoryObject(
                     key=route_path('explore/featured_playlists'),
                     title=L("MENU_FEATURED_PLAYLISTS"),
-                    thumb=R("icon-default.png")
+                    thumb=R("icon-explore-featuredplaylists.png")
                 ),
                 DirectoryObject(
                     key=route_path('explore/top_playlists'),
                     title=L("MENU_TOP_PLAYLISTS"),
-                    thumb=R("icon-default.png")
+                    thumb=R("icon-explore-topplaylists.png")
                 ),
                 DirectoryObject(
                     key=route_path('explore/new_releases'),
                     title=L("MENU_NEW_RELEASES"),
-                    thumb=R("icon-default.png")
+                    thumb=R("icon-explore-newreleases.png")
                 )                
             ],
         )
@@ -299,22 +302,22 @@ class SpotifyPlugin(object):
                 DirectoryObject(
                     key=route_path('your_music/playlists'),
                     title=L("MENU_PLAYLISTS"),
-                    thumb=R("icon-default.png")
+                    thumb=R("icon-playlists.png")
                 ),
                 DirectoryObject(
                     key=route_path('your_music/starred'),
                     title=L("MENU_STARRED"),
-                    thumb=R("icon-default.png")
+                    thumb=R("icon-starred.png")
                 ),                  
                 DirectoryObject(
                     key=route_path('your_music/albums'),
                     title=L("MENU_ALBUMS"),
-                    thumb=R("icon-default.png")
+                    thumb=R("icon-albums.png")
                 ),
                 DirectoryObject(
                     key=route_path('your_music/artists'),
                     title=L("MENU_ARTISTS"),
-                    thumb=R("icon-default.png")
+                    thumb=R("icon-artists.png")
                 ),            
             ],
         )
@@ -331,7 +334,7 @@ class SpotifyPlugin(object):
         oc = ObjectContainer(
             title2=L("MENU_FEATURED_PLAYLISTS"),
             content=ContainerContent.Playlists,
-            view_group=ViewMode.FeaturedPlaylists
+            view_group=ViewMode.Playlists
         )
 
         playlists = self.client.get_featured_playlists()
@@ -349,7 +352,7 @@ class SpotifyPlugin(object):
         oc = ObjectContainer(
             title2=L("MENU_TOP_PLAYLISTS"),
             content=ContainerContent.Playlists,
-            view_group=ViewMode.FeaturedPlaylists
+            view_group=ViewMode.Playlists
         )
 
         playlists = self.client.get_top_playlists()
@@ -413,8 +416,8 @@ class SpotifyPlugin(object):
 
         starred = self.client.get_starred()
 
-        for track in starred.getTracks():
-            self.add_track_to_directory(track, oc)
+        for x, track in enumerate(starred.getTracks()):
+            self.add_track_to_directory(track, oc, index=x)
 
         return oc
 
@@ -473,12 +476,12 @@ class SpotifyPlugin(object):
                 DirectoryObject(
                     key  = route_path('artist/%s/top_tracks' % uri),
                     title=L("MENU_TOP_TRACKS"),
-                    thumb=R("icon-default.png")
+                    thumb=R("icon-artist-toptracks.png")
                 ),
                 DirectoryObject(
                     key  = route_path('artist/%s/albums' % uri),
                     title =L("MENU_ALBUMS"),
-                    thumb =R("icon-default.png")
+                    thumb =R("icon-albums.png")
                 )
             ],
         )
@@ -590,31 +593,31 @@ class SpotifyPlugin(object):
                     key=route_path('search'),
                     prompt=L("PROMPT_SEARCH"),
                     title=L("MENU_SEARCH"),
-                    thumb=R("icon-default.png")
+                    thumb=R("icon-search.png")                    
                 ),
                 DirectoryObject(
                     key=route_path('explore'),
                     title=L("MENU_EXPLORE"),
-                    thumb=R("icon-default.png")
+                    thumb=R("icon-explore.png")
                 ),
                 #DirectoryObject(
                 #    key=route_path('discover'),
                 #    title=L("MENU_DISCOVER"),
-                #    thumb=R("icon-default.png")
+                #    thumb=R("icon-discover.png")
                 #),
                 #DirectoryObject(
                 #    key=route_path('radio'),
                 #    title=L("MENU_RADIO"),
-                #    thumb=R("icon-default.png")
+                #    thumb=R("icon-radio.png")
                 #),
                 DirectoryObject(
                     key=route_path('your_music'),
                     title=L("MENU_YOUR_MUSIC"),
-                    thumb=R("icon-default.png")
+                    thumb=R("icon-yourmusic.png")
                 ),
                 PrefsObject(
                     title=L("MENU_PREFS"),
-                    thumb=R("icon-default.png")
+                    thumb=R("icon-preferences.png")
                 )
             ],
         )
@@ -647,6 +650,8 @@ class SpotifyPlugin(object):
         if index is not None:
             rating_key = '%s::%s' % (uri, index)
 
+        art_num = str(randint(1,40)).rjust(2, "0")
+
         track_obj = TrackObject(
             items=[
                 MediaObject(
@@ -667,12 +672,12 @@ class SpotifyPlugin(object):
             album  = metadata.album,
             artist = metadata.artists,
 
-            index    = metadata.number,
+            index    = index if index != None else metadata.number,
             duration = metadata.duration,
 
             source_title='Spotify',
-
-            art   = function_path('image.png', uri=metadata.image_url),
+            
+            art   = R('art-' + art_num + '.png'), #function_path('image.png', uri=metadata.image_url),
             thumb = function_path('image.png', uri=metadata.image_url)
         )
         Log.Debug('New track object for metadata: --|%s|%s|%s|%s|%s|%s|--' % (metadata.image_url, metadata.uri, str(metadata.duration), str(metadata.number), metadata.album, metadata.artists))
