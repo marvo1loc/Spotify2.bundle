@@ -10,13 +10,16 @@ import urllib
 from ssl import SSLError
 from threading import Thread, Event, RLock, Semaphore
 import time
+from random import randint
+import uuid
 
 import requests
 from ws4py.client.threadedclient import WebSocketClient
 
 from flash_key import FLASH_KEY
 from proto import mercury_pb2, metadata_pb2, playlist4changes_pb2,\
-    playlist4ops_pb2, playlist4service_pb2, toplist_pb2, bartender_pb2
+    playlist4ops_pb2, playlist4service_pb2, toplist_pb2, bartender_pb2, \
+    radio_pb2
 
 #### from .proto import playlist4meta_pb2, playlist4issues_pb2, playlist4content_pb2
 
@@ -639,6 +642,78 @@ class SpotifyAPI():
             obj.ParseFromString(res)
         except Exception, e:
             Logging.error("There was a problem while parsing discover info. Message: " + str(e) + ". Resp: " + str(resp))
+            obj = False
+        self.chain_callback(sp, obj, callback_data)
+
+    def radio_stations_request(self, callback=False):
+        mercury_request = mercury_pb2.MercuryRequest()
+        mercury_request.body = "GET"
+        mercury_request.uri = "hm://radio/stations"
+        req = base64.encodestring(mercury_request.SerializeToString())
+
+        args = [0, req]
+        return self.wrap_request("sp/hm_b64", args, callback, self.parse_radio_stations)
+
+    def parse_radio_stations(self, sp, resp, callback_data):
+        obj = radio_pb2.StationList()
+        try:
+            res = base64.decodestring(resp[1])
+            obj.ParseFromString(res)
+        except Exception, e:
+            Logging.error("There was a problem while parsing radio stations info. Message: " + str(e) + ". Resp: " + str(resp))
+            obj = False
+        self.chain_callback(sp, obj, callback_data)
+
+    def radio_genres_request(self, callback=False):
+        mercury_request = mercury_pb2.MercuryRequest()
+        mercury_request.body = "GET"
+        mercury_request.uri = "hm://radio/genres/"
+        req = base64.encodestring(mercury_request.SerializeToString())
+
+        args = [0, req]
+        return self.wrap_request("sp/hm_b64", args, callback, self.parse_radio_genres)
+
+    def parse_radio_genres(self, sp, resp, callback_data):
+        obj = radio_pb2.GenreList()
+        try:
+            res = base64.decodestring(resp[1])
+            obj.ParseFromString(res)
+        except Exception, e:
+            Logging.error("There was a problem while parsing radio genre list info. Message: " + str(e) + ". Resp: " + str(resp))
+            obj = False
+        self.chain_callback(sp, obj, callback_data)
+
+    # Station uri can be a track, artist, or genre (spotify:genre:[genre_id])
+    def radio_tracks_request(self, stationUri, stationId=None, salt=None, num_tracks=20, callback=False):
+        if salt == None:
+            max32int = pow(2,31) - 1
+            salt     = randint(1,max32int)
+
+        if stationId == None:
+            stationId = uuid.uuid4().hex
+
+        radio_request           = radio_pb2.RadioRequest()
+        radio_request.salt      = salt
+        radio_request.length    = num_tracks
+        radio_request.stationId = stationId
+        radio_request.uris.append(stationUri)
+        req_args = base64.encodestring(radio_request.SerializeToString())
+
+        mercury_request      = mercury_pb2.MercuryRequest()
+        mercury_request.body = "GET"
+        mercury_request.uri  = "hm://radio/"
+        req = base64.encodestring(mercury_request.SerializeToString())
+
+        args = [0, req, req_args]
+        return self.wrap_request("sp/hm_b64", args, callback, self.parse_radio_tracks)
+
+    def parse_radio_tracks(self, sp, resp, callback_data):
+        obj = radio_pb2.Tracks()
+        try:
+            res = base64.decodestring(resp[1])
+            obj.ParseFromString(res)
+        except Exception, e:
+            Logging.error("There was a problem while parsing radio tracks. Message: " + str(e) + ". Resp: " + str(resp))
             obj = False
         self.chain_callback(sp, obj, callback_data)
 
