@@ -75,6 +75,14 @@ class SpotifyClient(object):
         return self.spotify.getNewReleases()
 
     #
+    # Discover
+    #
+
+    def discover(self):
+        """ Return the user's stories """
+        return self.spotify.discover()
+
+    #
     # Playlists
     #
 

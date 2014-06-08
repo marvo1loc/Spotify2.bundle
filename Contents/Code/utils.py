@@ -12,6 +12,7 @@ class ViewMode(object):
     Playlists           = "Playlists"
     Albums              = "Albums"
     Artists             = "Artists"
+    Stories             = "Stories"
 
     @classmethod
     def AddModes(cls, plugin):
@@ -19,6 +20,7 @@ class ViewMode(object):
         plugin.AddViewGroup(cls.Playlists,          "List",     "items")
         plugin.AddViewGroup(cls.Albums,             "Albums",   "items")
         plugin.AddViewGroup(cls.Artists,            "List",     "items")
+        plugin.AddViewGroup(cls.Stories,            "List",     "items")
         #ViewModes 
         # "List"
         # "InfoList", "MediaPreview", "Showcase", 
