@@ -62,6 +62,11 @@ def new_releases(**kwargs):
     return plugin_callback(SpotifyPlugin.new_releases, kwargs)
 
 
+@route(ROUTEBASE + 'discover')
+def discover(**kwargs):
+    return plugin_callback(SpotifyPlugin.discover, kwargs)
+
+
 @route(ROUTEBASE + 'your_music/playlists')
 def playlists(**kwargs):
     return plugin_callback(SpotifyPlugin.playlists, kwargs)

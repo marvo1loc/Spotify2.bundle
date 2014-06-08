@@ -1,5 +1,5 @@
 from lxml import etree
-from spotify_web.spotify import IMAGE_HOST, SpotifyUtil
+from spotify import IMAGE_HOST, SpotifyUtil
 
 
 class SpotifySearch():
