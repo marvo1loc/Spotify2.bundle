@@ -83,6 +83,28 @@ class SpotifyClient(object):
         return self.spotify.discover()
 
     #
+    # Radio
+    #
+
+    def get_radio_genres(self):
+        return self.spotify.getRadioGenres()
+
+    def get_radio_stations(self):
+        return self.spotify.getRadioStations()
+
+    def get_radio(self, radio_uri):
+        radios = []
+        if "spotify:genre:" in radio_uri:
+            radios = self.spotify.getRadioGenres()
+        else:
+            radios = self.spotify.getRadioStations()
+        
+        for radio in radios:
+            if radio.getURI() == radio_uri:
+                return radio
+        return False
+
+    #
     # Playlists
     #
 

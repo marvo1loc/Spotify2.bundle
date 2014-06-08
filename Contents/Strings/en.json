@@ -17,6 +17,10 @@
     "MENU_ALBUMS": "Albums",
     "MENU_ARTISTS": "Artists",
     "MENU_TOP_TRACKS": "Top Tracks",
+    "MENU_RADIO": "Radio",
+    "MENU_RADIO_STATIONS": "Stations",
+    "MENU_RADIO_GENRES": "Genres",
+    "MENU_RADIO_TRACK_NUM": "How many tracks?",
 
     "MENU_PREFS": "Preferences",
 
