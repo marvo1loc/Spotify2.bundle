@@ -228,9 +228,8 @@ class SpotifyPlugin(object):
         return None
 
     def get_uri_image(self, uri):
-        obj = self.client.get(uri)
         images = None
-
+        obj = self.client.get(uri)            
         if isinstance(obj, SpotifyArtist):
             images = obj.getPortraits()
         elif isinstance(obj, SpotifyAlbum):
@@ -239,7 +238,7 @@ class SpotifyPlugin(object):
             images = obj.getAlbum().getCovers()
         elif isinstance(obj, SpotifyPlaylist):
             images = obj.getImages()
-
+        
         return self.select_image(images)
 
     @authenticated
@@ -248,6 +247,8 @@ class SpotifyPlugin(object):
         if not uri:
             # TODO media specific placeholders
             return Redirect(R('placeholder-artist.png'))
+
+        Log.Debug('Getting image for: %s' % uri)
 
         if uri.startswith('spotify:'):
             # Fetch object for spotify URI and select image
@@ -291,7 +292,41 @@ class SpotifyPlugin(object):
                 )                
             ],
         )
-    
+
+    @authenticated
+    @check_restart
+    def discover(self):
+        Log("discover")
+
+        oc = ObjectContainer(
+            title2=L("MENU_DISCOVER"),
+            view_group=ViewMode.Stories
+        )
+
+        stories = self.client.discover()
+        for story in stories:
+            self.add_story_to_directory(story, oc)
+        return oc        
+
+    @authenticated
+    @check_restart
+    def radio(self):
+        """ Show radio options """
+        return ObjectContainer(
+            objects=[
+                DirectoryObject(
+                    key=route_path('radio/stations'),
+                    title=L("MENU_RADIO_STATIONS"),
+                    thumb=R("icon-radio-stations.png")
+                ),
+                DirectoryObject(
+                    key=route_path('radio/genres'),
+                    title=L("MENU_RADIO_GENRES"),
+                    thumb=R("icon-radio-genres.png")
+                )
+            ],
+        )
+
     @authenticated
     @check_restart
     def your_music(self):
@@ -381,23 +416,96 @@ class SpotifyPlugin(object):
         return oc
     
     #
-    # DISCOVER
+    # RADIO
     #
 
     @authenticated
     @check_restart
-    def discover(self):
-        Log("discover")
+    def radio_stations(self):
+        Log('radio stations')
+        
+        oc = ObjectContainer(title2=L("MENU_RADIO_STATIONS"))
+        
+        stations = self.client.get_radio_stations()
+        for station in stations:
+            oc.add(DirectoryObject(
+                        key=route_path('radio/stations/' + station.getURI()),
+                        title=station.getTitle(),
+                        thumb=function_path('image.png', uri=self.select_image(station.getImages()))
+                        #thumb=R("icon-radio-item.png")
+                        ))
+        return oc
+
+    @authenticated
+    @check_restart
+    def radio_genres(self):
+        Log('radio genres')
+
+        oc = ObjectContainer(title2=L("MENU_RADIO_GENRES"))
+        
+        genres = self.client.get_radio_genres()
+        for genre in genres:
+            oc.add(DirectoryObject(
+                        key=route_path('radio/genres/' + genre.getURI()),
+                        title=genre.getTitle(),
+                        thumb=function_path('image.png', uri=self.select_image(genre.getImages()))
+                        #thumb=R("icon-radio-item.png")
+                        ))
+        return oc
+
+    @authenticated
+    @check_restart
+    def radio_track_num(self, uri):
+        Log('radio track num')
+        return ObjectContainer(
+            title2=L("MENU_RADIO_TRACK_NUM"),
+            objects=[
+                DirectoryObject(
+                    key=route_path('radio/play/' + uri + '/10'),
+                    title="10",
+                    thumb=R("icon-radio-item.png")
+                ),
+                DirectoryObject(
+                    key=route_path('radio/play/' + uri + '/20'),
+                    title="20",
+                    thumb=R("icon-radio-item.png")
+                ),
+                DirectoryObject(
+                    key=route_path('radio/play/' + uri + '/50'),
+                    title="50",
+                    thumb=R("icon-radio-item.png")
+                ),
+                DirectoryObject(
+                    key=route_path('radio/play/' + uri + '/80'),
+                    title="80",
+                    thumb=R("icon-radio-item.png")
+                ),
+                DirectoryObject(
+                    key=route_path('radio/play/' + uri + '/100'),
+                    title="100",
+                    thumb=R("icon-radio-item.png")
+                )
+            ],
+        )        
+
+    @authenticated
+    @check_restart
+    def radio_tracks(self, uri, num_tracks):
+        Log('radio tracks')
+
+        oc     = None
+        radio  = self.client.get_radio(uri)
+        tracks = radio.getTracks(int(num_tracks))
 
         oc = ObjectContainer(
-            title2=L("MENU_DISCOVER"),
-            #content=ContainerContent.Playlists,
-            view_group=ViewMode.Stories
+            title2     = radio.getTitle().decode("utf-8"),
+            content    = ContainerContent.Tracks,
+            view_group = ViewMode.Tracks
         )
+        
+        for track in tracks:
+            self.add_track_to_directory(track, oc)
 
-        stories = self.client.discover()
-        for story in stories:
-            self.add_story_to_directory(story, oc)
         return oc
 
     #
@@ -548,6 +656,7 @@ class SpotifyPlugin(object):
                 message=localized_format("MSG_FMT_NO_RESULTS", artist.getName().decode("utf-8"))
             )
         return oc
+
     #
     # ALBUM DETAIL
     #
@@ -620,17 +729,16 @@ class SpotifyPlugin(object):
                     title=L("MENU_EXPLORE"),
                     thumb=R("icon-explore.png")
                 ),
-
                 DirectoryObject(
                     key=route_path('discover'),
                     title=L("MENU_DISCOVER"),
                     thumb=R("icon-discover.png")
                 ),
-                #DirectoryObject(
-                #    key=route_path('radio'),
-                #    title=L("MENU_RADIO"),
-                #    thumb=R("icon-radio.png")
-                #),
+                DirectoryObject(
+                    key=route_path('radio'),
+                    title=L("MENU_RADIO"),
+                    thumb=R("icon-radio.png")
+                ),
                 DirectoryObject(
                     key=route_path('your_music'),
                     title=L("MENU_YOUR_MUSIC"),

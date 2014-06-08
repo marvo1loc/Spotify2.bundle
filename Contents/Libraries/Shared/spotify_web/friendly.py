@@ -6,6 +6,8 @@ from spotify import SpotifyAPI, SpotifyUtil, Logging
 from search import SpotifySearch
 from tunigoapi import Tunigo
 
+import uuid
+
 # from spotify_web.proto import mercury_pb2, metadata_pb2
 
 
@@ -491,7 +493,7 @@ class SpotifyStory():
     def getDescription(self):
         return self.reason.getFulltext()
 
-    def getUri(self):
+    def getURI(self):
         return self.recommended_item.uri
 
     def getContentType(self):
@@ -500,6 +502,57 @@ class SpotifyStory():
     def getObject(self):
         return self.recommended_item.getObject()
 
+class SpotifyRadio(object):
+    def __init__(self, spotify, obj, id, title, title_uri, last_listen):
+        self.spotify     = spotify
+        self.obj         = obj
+        self.id          = id
+        self.title       = title
+        self.title_uri   = title_uri
+        self.last_listen = last_listen
+
+    def getURI(self):
+        return self.title_uri
+
+    def getId(self):
+        return self.id
+
+    def getTitle(self):
+        return self.title
+
+    def getImages(self):        
+        if self.obj != None and self.obj.imageUri != None:
+            image_id = ""
+            if self.obj.imageUri.startswith('spotify:image:'):
+                image_id = self.obj.imageUri.replace('spotify:image:', '')
+            elif self.obj.imageUri.startswith("spotify:mosaic:"):
+                image_id = self.obj.imageUri.replace('spotify:mosaic:', '')[0:40] # Pick the first image in the mosaic only
+
+            if image_id != "":
+                images = {}
+                image_url = Spotify.imageFromId(image_id, 300)
+                if image_url != None:
+                    images[300] = image_url
+                    return images
+        return None
+
+    def getImageURI(self):
+        return self.image_uri
+
+    def getTracks(self, num_tracks=20):
+        track_uris  = []
+        result = self.spotify.api.radio_tracks_request(stationUri=self.getURI(), stationId=self.getId(), num_tracks=num_tracks)
+        for track_gid in result.gids:
+            track_uris.append("spotify:track:" + track_gid)
+        return self.spotify.objectFromURI(track_uris, asArray=True)
+
+class SpotifyRadioStation(SpotifyRadio):
+    def __init__(self, spotify, obj):
+        SpotifyRadio.__init__(self, spotify, obj, obj.id, obj.title, obj.seeds[0], obj.lastListen)
+
+class SpotifyRadioGenre(SpotifyRadio):
+    def __init__(self, spotify, obj):
+        SpotifyRadio.__init__(self, spotify, obj, uuid.uuid4().hex, obj.name, 'spotify:genre:' + str(obj.id), 0)
 
 class Spotify():
     AUTOREPLACE_TRACKS = True
@@ -596,6 +649,20 @@ class Spotify():
         for story in result.stories:
             stories.append(SpotifyStory(self, story))
         return stories
+
+    def getRadioStations(self):
+        stations  = []
+        result = self.api.radio_stations_request()
+        for station in result.stations:
+            stations.append(SpotifyRadioStation(self, station))
+        return stations
+
+    def getRadioGenres(self):
+        genres  = []
+        result = self.api.radio_genres_request()
+        for genre in result.genres:
+            genres.append(SpotifyRadioGenre(self, genre))
+        return genres
 
     def search(self, query, query_type="all", max_results=50, offset=0):
         return SpotifySearch(self, query, query_type=query_type, max_results=max_results, offset=offset)

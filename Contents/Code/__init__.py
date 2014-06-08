@@ -48,6 +48,14 @@ def playlist(**kwargs):
 def metadata(**kwargs):
     return plugin_callback(SpotifyPlugin.metadata, kwargs)
 
+@route(ROUTEBASE + 'radio/stations/{uri}')
+@route(ROUTEBASE + 'radio/genres/{uri}')
+def radio_track_num(**kwargs):
+    return plugin_callback(SpotifyPlugin.radio_track_num, kwargs)
+
+@route(ROUTEBASE + 'radio/play/{uri}/{num_tracks}')
+def radio_tracks(**kwargs):
+    return plugin_callback(SpotifyPlugin.radio_tracks, kwargs)
 
 @route(ROUTEBASE + 'explore/featured_playlists')
 def featured_playlists(**kwargs):
@@ -62,9 +70,13 @@ def new_releases(**kwargs):
     return plugin_callback(SpotifyPlugin.new_releases, kwargs)
 
 
-@route(ROUTEBASE + 'discover')
-def discover(**kwargs):
-    return plugin_callback(SpotifyPlugin.discover, kwargs)
+@route(ROUTEBASE + 'radio/stations')
+def radio_stations(**kwargs):
+    return plugin_callback(SpotifyPlugin.radio_stations, kwargs)
+
+@route(ROUTEBASE + 'radio/genres')
+def radio_genres(**kwargs):
+    return plugin_callback(SpotifyPlugin.radio_genres, kwargs)
 
 
 @route(ROUTEBASE + 'your_music/playlists')
@@ -87,6 +99,14 @@ def artists(**kwargs):
 @route(ROUTEBASE + 'your_music')
 def your_music(**kwargs):
     return plugin_callback(SpotifyPlugin.your_music, kwargs)
+
+@route(ROUTEBASE + 'radio')
+def radio(**kwargs):
+    return plugin_callback(SpotifyPlugin.radio, kwargs)
+
+@route(ROUTEBASE + 'discover')
+def discover(**kwargs):
+    return plugin_callback(SpotifyPlugin.discover, kwargs)
 
 @route(ROUTEBASE + 'explore')
 def explore(**kwargs):
