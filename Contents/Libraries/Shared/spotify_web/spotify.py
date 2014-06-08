@@ -14,9 +14,9 @@ import time
 import requests
 from ws4py.client.threadedclient import WebSocketClient
 
-from .flash_key import FLASH_KEY
-from .proto import mercury_pb2, metadata_pb2, playlist4changes_pb2,\
-    playlist4ops_pb2, playlist4service_pb2, toplist_pb2
+from flash_key import FLASH_KEY
+from proto import mercury_pb2, metadata_pb2, playlist4changes_pb2,\
+    playlist4ops_pb2, playlist4service_pb2, toplist_pb2, bartender_pb2
 
 #### from .proto import playlist4meta_pb2, playlist4issues_pb2, playlist4content_pb2
 
@@ -622,6 +622,25 @@ class SpotifyAPI():
         args = [0, req]
 
         return self.wrap_request("sp/hm_b64", args, callback, self.parse_playlist)
+
+    def discover_request(self, callback=False):
+        mercury_request = mercury_pb2.MercuryRequest()
+        mercury_request.body = "GET"
+        mercury_request.uri = "hm://bartender/stories/skip/0/take/50"
+        req = base64.encodestring(mercury_request.SerializeToString())
+
+        args = [0, req]
+        return self.wrap_request("sp/hm_b64", args, callback, self.parse_discover)
+
+    def parse_discover(self, sp, resp, callback_data):
+        obj = bartender_pb2.StoryList()
+        try:
+            res = base64.decodestring(resp[1])
+            obj.ParseFromString(res)
+        except Exception, e:
+            Logging.error("There was a problem while parsing discover info. Message: " + str(e) + ". Resp: " + str(resp))
+            obj = False
+        self.chain_callback(sp, obj, callback_data)
 
     def playlist_request(self, uri, fromnum=0, num=100, callback=False):
         playlist_uri = urllib.quote_plus(uri.encode('utf8')).replace("%3A", "/").decode("utf-8")[8:]

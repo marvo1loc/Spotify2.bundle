@@ -2,7 +2,7 @@
 
 import time
 import requests
-from .spotify  import Logging
+from spotify import Logging
 
 IMAGE_HOST = "d3rt1990lpmkn.cloudfront.net"
 

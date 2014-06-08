@@ -2,9 +2,9 @@ from functools import partial
 from threading import Thread, Lock
 from Queue import Queue
 
-from .spotify import SpotifyAPI, SpotifyUtil, Logging
-from .search import SpotifySearch
-from .tunigoapi import Tunigo
+from spotify import SpotifyAPI, SpotifyUtil, Logging
+from search import SpotifySearch
+from tunigoapi import Tunigo
 
 # from spotify_web.proto import mercury_pb2, metadata_pb2
 
@@ -308,7 +308,7 @@ class SpotifyPlaylist(SpotifyObject):
         if self.obj != None and self.obj.attributes.picture != None:
             images = {}
             size  = 300
-            image_url = Spotify.imageFromGid(self.obj.attributes.picture, size)
+            image_url = Spotify.imageFromId(SpotifyUtil.gid2id(self.obj.attributes.picture), size)
             if image_url != None:
                 images[size] = image_url
                 return images
@@ -429,6 +429,77 @@ class SpotifyToplist():
             return []
         return self.spotify.objectFromID(self.toplist_content_type, self.toplist.items)
 
+class SpotifyLink():
+    def __init__(self, spotify, obj):
+        self.spotify = spotify
+        self.uri = obj.uri
+        self.display_name = obj.display_name
+        if obj.HasField("parent"):
+            self.parent = SpotifyLink(spotify, obj.parent)
+        else:
+            self.parent = None
+
+    def getContentType(self):
+        if ":artist:" in self.uri:
+            return 'artist'
+        if ":album:" in self.uri:
+            return 'album'
+        if ":track:" in self.uri:
+            return 'track'
+        if ":playlist:" in self.uri:
+            return 'playlist'
+        if ":user:" in self.uri:
+            return 'user'
+
+    def getObject(self):
+        return self.spotify.objectFromURI(self.uri, asArray=False)
+
+class SpotifyReasonField():
+    def __init__(self, spotify, obj, index):
+        self.spotify = spotify
+        self.text  = obj.text
+        self.uri   = obj.uri
+        self.index = index
+
+class SpotifyReason():
+    def __init__(self, spotify, obj):
+        self.spotify = spotify
+        self.text    = obj.text        
+        self.fields  = []
+        i = 0
+        for field in obj.fields:
+            self.fields.append(SpotifyReasonField(spotify, field, i))
+            i = i + 1
+
+    def getFulltext(self):
+        fulltext = self.text
+        for field in self.fields:
+            fulltext = fulltext.replace("{" + str(field.index) + "}", field.text)
+        return fulltext
+
+
+class SpotifyStory():
+    def __init__(self, spotify, obj):
+        self.spotify = spotify
+        self.recommended_item = SpotifyLink(spotify, obj.recommended_item)
+        self.reason = SpotifyReason(spotify, obj.reason_text)
+        self.obj = obj
+
+    def getImages(self):
+        return Spotify.imagesFromArray(self.obj.hero_image, must_convert_to_id=False)
+
+    def getDescription(self):
+        return self.reason.getFulltext()
+
+    def getUri(self):
+        return self.recommended_item.uri
+
+    def getContentType(self):
+        return self.recommended_item.getContentType()
+
+    def getObject(self):
+        return self.recommended_item.getObject()
+
 
 class Spotify():
     AUTOREPLACE_TRACKS = True
@@ -518,6 +589,13 @@ class Spotify():
             album_uris.append(item_json['release']['uri'])
 
         return self.objectFromURI(album_uris, asArray=True)
+
+    def discover(self):
+        stories = []
+        result = self.api.discover_request()
+        for story in result.stories:
+            stories.append(SpotifyStory(self, story))
+        return stories
 
     def search(self, query, query_type="all", max_results=50, offset=0):
         return SpotifySearch(self, query, query_type=query_type, max_results=max_results, offset=offset)
@@ -651,7 +729,7 @@ class Spotify():
         q.join()
 
     @staticmethod
-    def imagesFromArray(image_objs):
+    def imagesFromArray(image_objs, must_convert_to_id=True):
         images = {}
         for image_obj in image_objs:
             size = image_obj.width
@@ -666,15 +744,15 @@ class Spotify():
             elif size <= 640:
                 size = 640
             
-            image_url = Spotify.imageFromGid(image_obj.file_id, size)
+            image_id = SpotifyUtil.gid2id(image_obj.file_id) if must_convert_to_id else image_obj.file_id
+            image_url = Spotify.imageFromId(image_id, size)
             if image_url != None:
                 images[size] = image_url
 
         return images
 
     @staticmethod
-    def imageFromGid(image_gid, size):
-        image_id = SpotifyUtil.gid2id(image_gid)
+    def imageFromId(image_id, size):        
         if image_id == "00000000000000000000000000000000":
             image_url = None
         else:
