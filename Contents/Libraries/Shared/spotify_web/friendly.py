@@ -669,13 +669,15 @@ class Spotify():
         return genres
 
     def newRadioStation(self, uri):
-        title = ''
+        title = 'Radio %s'
         if 'spotify:genre:' in uri:
-            title = 'Custom radio for ' + uri.replace('spotify:genre:', '')
+            title = title % uri.replace('spotify:genre:', '')
         else:
             item = self.objectFromURI(uri, asArray=False)
             if item:
-                title = item.getName()
+                title = title % item.getName()
+            else:
+                title = title % ''
 
         return SpotifyRadioCustom(self, title, uri)
 

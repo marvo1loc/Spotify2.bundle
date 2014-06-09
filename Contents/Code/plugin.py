@@ -610,6 +610,11 @@ class SpotifyPlugin(object):
                     key  = route_path('artist/%s/albums' % uri),
                     title =L("MENU_ALBUMS"),
                     thumb =R("icon-albums.png")
+                ),
+                DirectoryObject(
+                    key=route_path('radio/stations/' + uri),
+                    title =L("MENU_RADIO"),
+                    thumb =R("icon-radio-custom.png")
                 )
             ],
         )
