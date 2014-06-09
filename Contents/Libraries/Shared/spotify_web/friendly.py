@@ -554,6 +554,10 @@ class SpotifyRadioGenre(SpotifyRadio):
     def __init__(self, spotify, obj):
         SpotifyRadio.__init__(self, spotify, obj, uuid.uuid4().hex, obj.name, 'spotify:genre:' + str(obj.id), 0)
 
+class SpotifyRadioCustom(SpotifyRadio):
+    def __init__(self, spotify, title, uri):
+        SpotifyRadio.__init__(self, spotify, None, uuid.uuid4().hex, title, uri, 0)
+
 class Spotify():
     AUTOREPLACE_TRACKS = True
 
@@ -663,6 +667,17 @@ class Spotify():
         for genre in result.genres:
             genres.append(SpotifyRadioGenre(self, genre))
         return genres
+
+    def newRadioStation(self, uri):
+        title = ''
+        if 'spotify:genre:' in uri:
+            title = 'Custom radio for ' + uri.replace('spotify:genre:', '')
+        else:
+            item = self.objectFromURI(uri, asArray=False)
+            if item:
+                title = item.getName()
+
+        return SpotifyRadioCustom(self, title, uri)
 
     def search(self, query, query_type="all", max_results=50, offset=0):
         return SpotifySearch(self, query, query_type=query_type, max_results=max_results, offset=offset)
