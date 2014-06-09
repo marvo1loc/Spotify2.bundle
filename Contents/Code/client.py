@@ -102,7 +102,7 @@ class SpotifyClient(object):
         for radio in radios:
             if radio.getURI() == radio_uri:
                 return radio
-        return False
+        return self.spotify.newRadioStation(radio_uri)
 
     #
     # Playlists

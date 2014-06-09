@@ -612,20 +612,6 @@ class SpotifyAPI():
 
         return self.wrap_request("sp/hm_b64", args, callback, self.parse_toplist)
 
-    def playlists_request(self, user, fromnum=0, num=100, callback=False):
-        if num > 100:
-            Logging.error("You may only request up to 100 playlists at once")
-            return False
-
-        mercury_request = mercury_pb2.MercuryRequest()
-        mercury_request.body = "GET"
-        mercury_request.uri = "hm://playlist/user/"+user+"/rootlist?from=" + str(fromnum) + "&length=" + str(num)
-        req = base64.encodestring(mercury_request.SerializeToString())
-
-        args = [0, req]
-
-        return self.wrap_request("sp/hm_b64", args, callback, self.parse_playlist)
-
     def discover_request(self, callback=False):
         mercury_request = mercury_pb2.MercuryRequest()
         mercury_request.body = "GET"
@@ -716,6 +702,20 @@ class SpotifyAPI():
             Logging.error("There was a problem while parsing radio tracks. Message: " + str(e) + ". Resp: " + str(resp))
             obj = False
         self.chain_callback(sp, obj, callback_data)
+
+    def playlists_request(self, user, fromnum=0, num=100, callback=False):
+        if num > 100:
+            Logging.error("You may only request up to 100 playlists at once")
+            return False
+
+        mercury_request = mercury_pb2.MercuryRequest()
+        mercury_request.body = "GET"
+        mercury_request.uri = "hm://playlist/user/"+user+"/rootlist?from=" + str(fromnum) + "&length=" + str(num)
+        req = base64.encodestring(mercury_request.SerializeToString())
+
+        args = [0, req]
+
+        return self.wrap_request("sp/hm_b64", args, callback, self.parse_playlist)
 
     def playlist_request(self, uri, fromnum=0, num=100, callback=False):
         playlist_uri = urllib.quote_plus(uri.encode('utf8')).replace("%3A", "/").decode("utf-8")[8:]
