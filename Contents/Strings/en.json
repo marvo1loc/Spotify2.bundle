@@ -21,10 +21,12 @@
     "MENU_RADIO_STATIONS": "Stations",
     "MENU_RADIO_GENRES": "Genres",
     "MENU_RADIO_TRACK_NUM": "How many tracks?",
+    "MENU_TRACK_NUM": "Generate ~%s tracks",
 
     "MENU_PREFS": "Preferences",
 
     "PROMPT_SEARCH": "Search for music",
+
 
     "MSG_TITLE_MISSING_LOGIN": "Authentication Details Missing",
     "MSG_TITLE_LOGIN_IN_PROGRESS": "Login in Progress",

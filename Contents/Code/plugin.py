@@ -428,11 +428,10 @@ class SpotifyPlugin(object):
         
         stations = self.client.get_radio_stations()
         for station in stations:
-            oc.add(DirectoryObject(
+            oc.add(PopupDirectoryObject(
                         key=route_path('radio/stations/' + station.getURI()),
                         title=station.getTitle(),
                         thumb=function_path('image.png', uri=self.select_image(station.getImages()))
-                        #thumb=R("icon-radio-item.png")
                         ))
         return oc
 
@@ -445,11 +444,10 @@ class SpotifyPlugin(object):
         
         genres = self.client.get_radio_genres()
         for genre in genres:
-            oc.add(DirectoryObject(
+            oc.add(PopupDirectoryObject(
                         key=route_path('radio/genres/' + genre.getURI()),
                         title=genre.getTitle(),
                         thumb=function_path('image.png', uri=self.select_image(genre.getImages()))
-                        #thumb=R("icon-radio-item.png")
                         ))
         return oc
 
@@ -462,27 +460,27 @@ class SpotifyPlugin(object):
             objects=[
                 DirectoryObject(
                     key=route_path('radio/play/' + uri + '/10'),
-                    title="10",
+                    title=localized_format("MENU_TRACK_NUM", "10"),
                     thumb=R("icon-radio-item.png")
                 ),
                 DirectoryObject(
                     key=route_path('radio/play/' + uri + '/20'),
-                    title="20",
+                    title=localized_format("MENU_TRACK_NUM", "20"),
                     thumb=R("icon-radio-item.png")
                 ),
                 DirectoryObject(
                     key=route_path('radio/play/' + uri + '/50'),
-                    title="50",
+                    title=localized_format("MENU_TRACK_NUM", "50"),
                     thumb=R("icon-radio-item.png")
                 ),
                 DirectoryObject(
                     key=route_path('radio/play/' + uri + '/80'),
-                    title="80",
+                    title=localized_format("MENU_TRACK_NUM", "80"),
                     thumb=R("icon-radio-item.png")
                 ),
                 DirectoryObject(
                     key=route_path('radio/play/' + uri + '/100'),
-                    title="100",
+                    title=localized_format("MENU_TRACK_NUM", "100"),
                     thumb=R("icon-radio-item.png")
                 )
             ],
@@ -727,7 +725,7 @@ class SpotifyPlugin(object):
                     key=route_path('search'),
                     prompt=L("PROMPT_SEARCH"),
                     title=L("MENU_SEARCH"),
-                    thumb=R("icon-search.png")                    
+                    thumb=R("icon-search.png")
                 ),
                 DirectoryObject(
                     key=route_path('explore'),
@@ -818,13 +816,14 @@ class SpotifyPlugin(object):
 
         return track_obj
 
-    def create_album_object(self, album, custom_title=None, custom_artist=None, custom_image_url=None):
+    def create_album_object(self, album, custom_summary=None, custom_image_url=None):
         """ Factory method for album objects """
-        title = album.getName().decode("utf-8") if custom_title == None else custom_title.decode('utf-8')
-        if Prefs["displayAlbumYear"] and album.getYear() != 0 and custom_title == None:
+        title = album.getName().decode("utf-8")
+        if Prefs["displayAlbumYear"] and album.getYear() != 0:
             title = "%s (%s)" % (title, album.getYear())
-        artist_name = album.getArtists(nameOnly=True).decode("utf-8") if custom_artist == None else custom_artist.decode('utf-8')
-        image_url = self.select_image(album.getCovers()) if custom_image_url == None else custom_image_url
+        artist_name = album.getArtists(nameOnly=True).decode("utf-8")
+        summary     = '' if custom_summary == None else custom_summary.decode('utf-8')
+        image_url   = self.select_image(album.getCovers()) if custom_image_url == None else custom_image_url
 
         return AlbumObject(
             key=route_path('album', album.getURI().decode("utf-8")),
@@ -832,6 +831,7 @@ class SpotifyPlugin(object):
 
             title=title,
             artist=artist_name,
+            summary=summary,
 
             track_count=album.getNumTracks(),
             source_title='Spotify',
@@ -845,9 +845,9 @@ class SpotifyPlugin(object):
         image_url   = self.select_image(playlist.getImages())
         artist      = playlist.getUsername().decode("utf-8")
         title       = playlist.getName().decode("utf-8")
-
+        summary     = ''
         if playlist.getDescription() != None and len(playlist.getDescription()) > 0:
-            title = title + ": " + playlist.getDescription().decode("utf-8")
+            summary = playlist.getDescription().decode("utf-8")
 
         return AlbumObject(
             key=route_path('playlist', uri),
@@ -855,23 +855,25 @@ class SpotifyPlugin(object):
             
             title=title,
             artist=artist,
+            summary=summary,
+
             source_title='Spotify',
             
             art=function_path('image.png', uri=image_url) if image_url != None else R("placeholder-playlist.png"),
             thumb=function_path('image.png', uri=image_url) if image_url != None else R("placeholder-playlist.png")
         )
 
-    def create_artist_object(self, artist, custom_title=None, custom_artist=None, custom_image_url=None):
+    def create_artist_object(self, artist, custom_summary=None, custom_image_url=None):
         image_url   = self.select_image(artist.getPortraits()) if custom_image_url == None else custom_image_url
-        title       = artist.getName().decode("utf-8") if custom_title == None else custom_title.decode('utf-8')
-        artist_name = '' if custom_artist == None else custom_artist.decode('utf-8')
+        artist_name = artist.getName().decode("utf-8")
+        summary     = '' if custom_summary == None else custom_summary.decode('utf-8')
 
-        return AlbumObject(
+        return ArtistObject(
                 key=route_path('artist', artist.getURI().decode("utf-8")),
                 rating_key=artist.getURI().decode("utf-8"),
 
-                title=title,
-                artist=artist_name,
+                title=artist_name,
+                summary=summary,
                 source_title='Spotify',
 
                 art=function_path('image.png', uri=image_url),
@@ -903,14 +905,14 @@ class SpotifyPlugin(object):
 
         oc.add(self.create_track_object(track, index=index))
 
-    def add_album_to_directory(self, album, oc, custom_title=None, custom_artist=None, custom_image_url=None):
+    def add_album_to_directory(self, album, oc, custom_summary=None, custom_image_url=None):
         if not self.client.is_album_playable(album):
             Log("Ignoring unplayable album: %s" % album.getName())
             return
-        oc.add(self.create_album_object(album, custom_title=custom_title, custom_artist=custom_artist, custom_image_url=custom_image_url))
+        oc.add(self.create_album_object(album, custom_summary=custom_summary, custom_image_url=custom_image_url))
 
-    def add_artist_to_directory(self, artist, oc, custom_title=None, custom_artist=None, custom_image_url=None):
-        oc.add(self.create_artist_object(artist, custom_title=custom_title, custom_artist=custom_artist, custom_image_url=custom_image_url))
+    def add_artist_to_directory(self, artist, oc, custom_summary=None, custom_image_url=None):
+        oc.add(self.create_artist_object(artist, custom_summary=custom_summary, custom_image_url=custom_image_url))
 
     def add_playlist_to_directory(self, playlist, oc):
         oc.add(self.create_playlist_object(playlist))
@@ -920,13 +922,11 @@ class SpotifyPlugin(object):
         image_url    = self.select_image(story.getImages())
         item         = story.getObject()
         if content_type == 'artist':
-            self.add_artist_to_directory(item, oc, custom_title=item.getName(), custom_artist=story.getDescription(), custom_image_url=image_url)
+            self.add_artist_to_directory(item, oc, custom_summary=story.getDescription(), custom_image_url=image_url)
         elif content_type == 'album':
-            title = item.getArtists(nameOnly=True) + ": " + item.getName()
-            self.add_album_to_directory(item,  oc, custom_title=title, custom_artist=story.getDescription(), custom_image_url=image_url)
+            self.add_album_to_directory(item,  oc, custom_summary=story.getDescription(), custom_image_url=image_url)
         elif content_type == 'track':
-            title = item.getArtists(nameOnly=True)+ ": " + item.getName()
-            self.add_album_to_directory(item.getAlbum(), oc, custom_title=title, custom_artist=story.getDescription(), custom_image_url=image_url)
+            self.add_album_to_directory(item.getAlbum(), oc, custom_summary=story.getDescription() + " - " + item.getName(), custom_image_url=image_url)
         
         # Do not include playlists (just like official spotify client does)
         #elif content_type == 'playlist':
