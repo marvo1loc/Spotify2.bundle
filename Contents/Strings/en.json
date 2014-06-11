@@ -22,11 +22,11 @@
     "MENU_RADIO_GENRES": "Genres",
     "MENU_RADIO_TRACK_NUM": "How many tracks?",
     "MENU_TRACK_NUM": "Generate ~%s tracks",
+    "MENU_RELATED": "Related Artists",
 
     "MENU_PREFS": "Preferences",
 
     "PROMPT_SEARCH": "Search for music",
-
 
     "MSG_TITLE_MISSING_LOGIN": "Authentication Details Missing",
     "MSG_TITLE_LOGIN_IN_PROGRESS": "Login in Progress",
@@ -40,5 +40,6 @@
     "MSG_BODY_PLAYIST_ERROR": "The selected playlist details could not be found",
 
     "MSG_FMT_DID_YOU_MEAN": "Did you mean '%s'?",
-    "MSG_FMT_NO_RESULTS": "No matches for '%s'..."
+    "MSG_FMT_NO_RESULTS": "No matches for '%s'...",
+    "MSG_RELATED_TO": "Related to %s"
 }

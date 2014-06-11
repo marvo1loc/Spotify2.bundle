@@ -610,6 +610,11 @@ class SpotifyPlugin(object):
                     thumb =R("icon-albums.png")
                 ),
                 DirectoryObject(
+                    key  = route_path('artist/%s/related' % uri),
+                    title =L("MENU_RELATED"),
+                    thumb =R("icon-artist-related.png")
+                ),               
+                DirectoryObject(
                     key=route_path('radio/stations/' + uri),
                     title =L("MENU_RADIO"),
                     thumb =R("icon-radio-custom.png")
@@ -658,6 +663,24 @@ class SpotifyPlugin(object):
                 header=L("MSG_TITLE_NO_RESULTS"),
                 message=localized_format("MSG_FMT_NO_RESULTS", artist.getName().decode("utf-8"))
             )
+        return oc
+
+    @authenticated
+    @check_restart
+    def artist_related(self, uri):
+        """ Browse an artist.
+        :param uri:            The Spotify URI of the artist to browse.
+        """
+        artist = self.client.get(uri)
+
+        oc = ObjectContainer(
+            title2=localized_format("MSG_RELATED_TO", artist.getName().decode("utf-8")),
+            content=ContainerContent.Artists
+        )
+
+        for artist in artist.getRelatedArtists():
+            self.add_artist_to_directory(artist, oc)
+
         return oc
 
     #
