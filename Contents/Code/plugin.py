@@ -619,7 +619,7 @@ class SpotifyPlugin(object):
                     key  = route_path('artist/%s/related' % uri),
                     title =L("MENU_RELATED"),
                     thumb =R("icon-artist-related.png")
-                ),               
+                ),
                 DirectoryObject(
                     key=route_path('radio/stations/' + uri),
                     title =L("MENU_RADIO"),
@@ -697,8 +697,36 @@ class SpotifyPlugin(object):
     @check_restart
     def album(self, uri):
         """ Browse an album.
+        :param uri: The Spotify URI of the album to browse.
+        """
+        album = self.client.get(uri)
 
-        :param uri:            The Spotify URI of the album to browse.
+        oc = ObjectContainer(
+            title2=album.getName().decode("utf-8"), 
+            content=ContainerContent.Artists
+        )
+        
+        oc.add(DirectoryObject(
+                    key  = route_path('album/%s/tracks' % uri),
+                    title=L("MENU_ALBUM_TRACKS"),
+                    thumb=R("icon-album-tracks.png")))
+
+        artists = album.getArtists()
+        for artist in artists:
+            self.add_artist_to_directory(artist, oc)
+        
+        oc.add(DirectoryObject(
+                    key=route_path('radio/stations/' + uri),
+                    title =L("MENU_RADIO"),
+                    thumb =R("icon-radio-custom.png")))
+
+        return oc
+
+    @authenticated
+    @check_restart
+    def album_tracks(self, uri):
+        """ Browse album tracks.
+        :param uri: The Spotify URI of the album to browse.
         """
         album = self.client.get(uri)
 
