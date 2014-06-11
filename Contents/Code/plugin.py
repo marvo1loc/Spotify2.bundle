@@ -674,7 +674,7 @@ class SpotifyPlugin(object):
         artist = self.client.get(uri)
 
         oc = ObjectContainer(
-            title2=artist.getName().decode("utf-8"),
+            title2=localized_format("MSG_RELATED_TO", artist.getName().decode("utf-8")),
             content=ContainerContent.Artists
         )
 
