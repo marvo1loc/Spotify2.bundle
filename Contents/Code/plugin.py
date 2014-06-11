@@ -697,8 +697,29 @@ class SpotifyPlugin(object):
     @check_restart
     def album(self, uri):
         """ Browse an album.
+        :param uri: The Spotify URI of the album to browse.
+        """
+        album = self.client.get(uri)
 
-        :param uri:            The Spotify URI of the album to browse.
+        oc = ObjectContainer(
+            title2=album.getName().decode("utf-8"), 
+            content=ContainerContent.Artists
+        )
+        
+        artist = album.getArtists()
+        self.add_artist_to_directory(artist, oc)
+        
+        oc.add(DirectoryObject(
+                    key  = route_path('album/%s/tracks' % uri),
+                    title=L("MENU_ALBUM_TRACKS"),
+                    thumb=R("icon-album-tracks.png")))
+        return oc
+
+    @authenticated
+    @check_restart
+    def album_tracks(self, uri):
+        """ Browse album tracks.
+        :param uri: The Spotify URI of the album to browse.
         """
         album = self.client.get(uri)
 
