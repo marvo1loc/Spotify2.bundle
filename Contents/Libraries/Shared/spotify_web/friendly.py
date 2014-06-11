@@ -7,6 +7,7 @@ from search import SpotifySearch
 from tunigoapi import Tunigo
 
 import uuid
+from random import randint
 
 # from spotify_web.proto import mercury_pb2, metadata_pb2
 
@@ -539,9 +540,16 @@ class SpotifyRadio(object):
     def getImageURI(self):
         return self.image_uri
 
-    def getTracks(self, num_tracks=20):
+    def generateSalt(self):
+        max32int = pow(2,31) - 1
+        return randint(1,max32int)
+
+    def getTracks(self, salt=None, num_tracks=20):
+        if not salt:
+            salt = self.generateSalt()
+            
         track_uris  = []
-        result = self.spotify.api.radio_tracks_request(stationUri=self.getURI(), stationId=self.getId(), num_tracks=num_tracks)
+        result = self.spotify.api.radio_tracks_request(stationUri=self.getURI(), stationId=self.getId(), salt=salt, num_tracks=num_tracks)
         for track_gid in result.gids:
             track_uris.append("spotify:track:" + track_gid)
         return self.spotify.objectFromURI(track_uris, asArray=True)

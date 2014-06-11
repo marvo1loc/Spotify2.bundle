@@ -29,6 +29,7 @@ class SpotifyPlugin(object):
         Dict['schedule_restart_each']  = 5*60   # restart each  X minutes
         Dict['play_restart_each']      = 2      # restart each  X plays
         Dict['play_restart_after']     = 2      # restart after X seconds when play count has been reached
+        Dict['radio_salt']             = False   # Saves last radio salt so multiple queries return the same radio track list
 
         self.start()
 
@@ -424,8 +425,8 @@ class SpotifyPlugin(object):
     def radio_stations(self):
         Log('radio stations')
         
-        oc = ObjectContainer(title2=L("MENU_RADIO_STATIONS"))
-        
+        Dict['radio_salt'] = False
+        oc = ObjectContainer(title2=L("MENU_RADIO_STATIONS"))        
         stations = self.client.get_radio_stations()
         for station in stations:
             oc.add(PopupDirectoryObject(
@@ -440,8 +441,8 @@ class SpotifyPlugin(object):
     def radio_genres(self):
         Log('radio genres')
 
-        oc = ObjectContainer(title2=L("MENU_RADIO_GENRES"))
-        
+        Dict['radio_salt'] = False
+        oc = ObjectContainer(title2=L("MENU_RADIO_GENRES"))        
         genres = self.client.get_radio_genres()
         for genre in genres:
             oc.add(PopupDirectoryObject(
@@ -493,7 +494,12 @@ class SpotifyPlugin(object):
 
         oc     = None
         radio  = self.client.get_radio(uri)
-        tracks = radio.getTracks(int(num_tracks))
+
+        if not Dict['radio_salt']:
+            Dict['radio_salt'] = radio.generateSalt()
+        
+        salt = Dict['radio_salt']
+        tracks = radio.getTracks(salt=salt, num_tracks=int(num_tracks))
 
         oc = ObjectContainer(
             title2     = radio.getTitle().decode("utf-8"),
