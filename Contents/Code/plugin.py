@@ -706,8 +706,9 @@ class SpotifyPlugin(object):
             content=ContainerContent.Artists
         )
         
-        artist = album.getArtists()
-        self.add_artist_to_directory(artist, oc)
+        artists = album.getArtists()
+        for artist in artists:
+            self.add_artist_to_directory(artist, oc)
         
         oc.add(DirectoryObject(
                     key  = route_path('album/%s/tracks' % uri),
