@@ -882,20 +882,31 @@ class SpotifyPlugin(object):
         summary     = '' if custom_summary == None else custom_summary.decode('utf-8')
         image_url   = self.select_image(album.getCovers()) if custom_image_url == None else custom_image_url
 
-        return AlbumObject(
+        return DirectoryObject(
             key=route_path('album', album.getURI().decode("utf-8")),
-            rating_key=album.getURI().decode("utf-8"),
-
-            title=title,
-            artist=artist_name,
+            
+            title=title + " - " + artist_name,
+            tagline=artist_name,
             summary=summary,
-
-            track_count=album.getNumTracks(),
-            source_title='Spotify',
-
+            
             art=function_path('image.png', uri=image_url),
             thumb=function_path('image.png', uri=image_url),
         )
+
+        #return AlbumObject(
+        #    key=route_path('album', album.getURI().decode("utf-8")),
+        #    rating_key=album.getURI().decode("utf-8"),
+        #
+        #    title=title,
+        #    artist=artist_name,
+        #    summary=summary,
+        #
+        #    track_count=album.getNumTracks(),
+        #    source_title='Spotify',
+        #
+        #    art=function_path('image.png', uri=image_url),
+        #    thumb=function_path('image.png', uri=image_url),
+        #)
     
     def create_playlist_object(self, playlist):
         uri         = urllib.quote_plus(playlist.getURI().encode('utf8')).replace("%3A", ":").decode("utf-8")
@@ -906,37 +917,57 @@ class SpotifyPlugin(object):
         if playlist.getDescription() != None and len(playlist.getDescription()) > 0:
             summary = playlist.getDescription().decode("utf-8")
 
-        return AlbumObject(
+        return DirectoryObject(
             key=route_path('playlist', uri),
-            rating_key=uri,
             
-            title=title,
-            artist=artist,
+            title=title + " - " + artist,
+            tagline=artist,
             summary=summary,
-
-            source_title='Spotify',
             
             art=function_path('image.png', uri=image_url) if image_url != None else R("placeholder-playlist.png"),
             thumb=function_path('image.png', uri=image_url) if image_url != None else R("placeholder-playlist.png")
         )
+
+        #return AlbumObject(
+        #    key=route_path('playlist', uri),
+        #    rating_key=uri,
+        #    
+        #    title=title,
+        #    artist=artist,
+        #    summary=summary,
+        #
+        #    source_title='Spotify',
+        #    
+        #    art=function_path('image.png', uri=image_url) if image_url != None else R("placeholder-playlist.png"),
+        #    thumb=function_path('image.png', uri=image_url) if image_url != None else R("placeholder-playlist.png")
+        #)
 
     def create_artist_object(self, artist, custom_summary=None, custom_image_url=None):
         image_url   = self.select_image(artist.getPortraits()) if custom_image_url == None else custom_image_url
         artist_name = artist.getName().decode("utf-8")
         summary     = '' if custom_summary == None else custom_summary.decode('utf-8')
 
-        return ArtistObject(
-                key=route_path('artist', artist.getURI().decode("utf-8")),
-                rating_key=artist.getURI().decode("utf-8"),
+        return DirectoryObject(
+                    key=route_path('artist', artist.getURI().decode("utf-8")),
+                    
+                    title=artist_name,
+                    summary=summary,
+                    
+                    art=function_path('image.png', uri=image_url),
+                    thumb=function_path('image.png', uri=image_url)
+                )
 
-                title=artist_name,
-                summary=summary,
-                source_title='Spotify',
-
-                art=function_path('image.png', uri=image_url),
-                thumb=function_path('image.png', uri=image_url)
-            )            
-
+        #return ArtistObject(
+        #        key=route_path('artist', artist.getURI().decode("utf-8")),
+        #        rating_key=artist.getURI().decode("utf-8"),
+        #
+        #        title=artist_name,
+        #        summary=summary,
+        #        source_title='Spotify',
+        #
+        #        art=function_path('image.png', uri=image_url),
+        #        thumb=function_path('image.png', uri=image_url)
+        #    )
 
     #
     # Insert objects into container
