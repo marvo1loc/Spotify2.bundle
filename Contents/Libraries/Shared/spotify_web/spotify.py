@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 import re
 import json
@@ -16,7 +15,6 @@ import uuid
 import requests
 from ws4py.client.threadedclient import WebSocketClient
 
-from flash_key import FLASH_KEY
 from proto import mercury_pb2, metadata_pb2, playlist4changes_pb2,\
     playlist4ops_pb2, playlist4service_pb2, toplist_pb2, bartender_pb2, \
     radio_pb2
@@ -1007,22 +1005,21 @@ class SpotifyAPI():
         Logging.debug("Got ack for message reply")
 
     def send_pong(self, ping):
-        ping_parts = ping.split(' ')
-
+        rest_ping = ping.replace(" ","-")
         pong = "undefined 0"
-
-        if len(ping_parts) >= 20:
-            result = []
-
-            for idx, code in FLASH_KEY:
-                val = int(ping_parts[idx])
-
-                result.append(str(val ^ code if type(code) is int else code[val]))
-
-            pong = ' '.join(result)
-
-        Logging.debug('received flash ping %s, sending pong: %s' % (ping, pong))
-        return self.send_command('sp/pong_flash2', [pong])
+        Logging.debug("Obtaining pong for ping [%s]" % rest_ping)
+        try:            
+            r = requests.get("http://78.47.194.46:8080/%s" % rest_ping)
+            if r.status_code == 200:
+                result = r.json()
+                if result['status'] == "ok":
+                    pong = result['pong'].replace("-"," ")
+            
+            Logging.debug('received flash ping %s, sending pong: %s' % (ping, pong))
+            return self.send_command('sp/pong_flash2', [pong])
+        except Exception, e:
+            Logging.debug("There was a problem while obtaining pong. Message: " + str(e))
+            return False
 
     def handle_message(self, msg):
         cmd = msg[0]
