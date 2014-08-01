@@ -110,16 +110,25 @@ class SpotifySearch(object):
     def create_artist(artist):
         image_url = artist.portrait.large if artist.portrait else None
 
-        return ArtistObject(
+        return DirectoryObject(
             key=route_path('artist', artist.uri),
-            rating_key=artist.uri,
-
+            
             title=artist.name,
-            source_title='Spotify',
-
+            
             art=function_path('image.png', uri=image_url),
             thumb=function_path('image.png', uri=image_url)
         )
+
+        #return ArtistObject(
+        #    key=route_path('artist', artist.uri),
+        #    rating_key=artist.uri,
+        #
+        #    title=artist.name,
+        #    source_title='Spotify',
+        #
+        #    art=function_path('image.png', uri=image_url),
+        #    thumb=function_path('image.png', uri=image_url)
+        #)
 
     @staticmethod
     def create_album(album):
@@ -129,19 +138,28 @@ class SpotifySearch(object):
         #if Prefs["displayAlbumYear"] and album.getYear() != 0:
         #    title = "%s (%s)" % (title, album.getYear())
 
-        return AlbumObject(
+        return DirectoryObject(
             key=route_path('album', album.uri),
-            rating_key=album.uri,
-
+            
             title=title,
-            # TODO artist=album.getArtists(nameOnly=True),
-
-            # TODO track_count=album.getNumTracks(),
-            source_title='Spotify',
-
+            
             art=function_path('image.png', uri=album.cover_large),
             thumb=function_path('image.png', uri=album.cover_large),
         )
+
+        #return AlbumObject(
+        #    key=route_path('album', album.uri),
+        #    rating_key=album.uri,
+        #
+        #    title=title,
+        #    # TODO artist=album.getArtists(nameOnly=True),
+        #
+        #    # TODO track_count=album.getNumTracks(),
+        #    source_title='Spotify',
+        #
+        #    art=function_path('image.png', uri=album.cover_large),
+        #    thumb=function_path('image.png', uri=album.cover_large),
+        #)
 
     @staticmethod
     def create_track(track):
