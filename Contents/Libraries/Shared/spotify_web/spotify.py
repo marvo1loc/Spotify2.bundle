@@ -1009,10 +1009,10 @@ class SpotifyAPI():
         pong = "undefined 0"
         Logging.debug("Obtaining pong for ping [%s]" % rest_ping)
         try:            
-            r = requests.get("http://78.47.194.46:8080/%s" % rest_ping)
+            r = requests.get("http://ping-pong.spotify.nodestuff.net/%s" % rest_ping)
             if r.status_code == 200:
                 result = r.json()
-                if result['status'] == "ok":
+                if result['status'] == 100:
                     pong = result['pong'].replace("-"," ")
             
             Logging.debug('received flash ping %s, sending pong: %s' % (ping, pong))
