@@ -9,7 +9,7 @@ IMAGE_HOST = "d3rt1990lpmkn.cloudfront.net"
 class Tunigo():
 
     def __init__(self, region = "us"):
-        self.region   = region
+        self.region = "us" if region is None else region
         self.root_url = "https://api.tunigo.com/v3/space/"
         Logging.debug("Starting with Tunigo for region: "  + self.region)
 
