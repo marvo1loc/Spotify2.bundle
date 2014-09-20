@@ -573,7 +573,8 @@ class Spotify():
         self.global_lock = Lock()
         self.api = SpotifyAPI(log_level=log_level)
         self.api.connect(username, password)
-        self.tunigo = Tunigo(region=self.api.country)
+        if self.api.is_logged_in:
+            self.tunigo = Tunigo(region=self.api.country)
 
     def logged_in(self):
         return self.api.is_logged_in and not self.api.disconnecting

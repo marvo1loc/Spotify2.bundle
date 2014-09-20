@@ -489,8 +489,8 @@ _runtimes['SpiderMonkey'] = _runtimes['Spidermonkey'] = ExternalRuntime(
 
 _runtimes['JScript'] = ExternalRuntime(
     name        = "JScript",
-    command     = ["cscript", "//E:jscript", "//Nologo", "//U"],
-    encoding    = 'UTF-16LE', # CScript with //U returns UTF-16LE
+    command     = ["cscript", "//E:jscript", "//Nologo"],
+    encoding    = 'UTF-8',
     runner_source = r"""(function(program, execJS) { execJS(program) })(function() {
   return eval(#{encoded_source});
 }, function(program) {

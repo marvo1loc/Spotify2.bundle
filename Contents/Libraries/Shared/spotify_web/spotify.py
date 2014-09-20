@@ -993,13 +993,15 @@ class SpotifyAPI():
 
     def work(self, payload):
         Logging.debug("Got do_work message, payload: " + payload)
+        try:
+            ctx = execjs.compile(WORK_RUNNER % payload)
+            result = ctx.eval('main.run.call(main)')
+            Logging.debug('Work result: %s' % result)
 
-        ctx = execjs.compile(WORK_RUNNER % payload)
-        result = ctx.eval('main.run.call(main)')
-
-        Logging.debug('Work result: %s' % result)
-
-        return self.send_command("sp/work_done", result, self.work_callback)
+            return self.send_command("sp/work_done", result, self.work_callback)
+        except Exception, e:
+            Logging.error("There was a problem while do_work. Message: " + str(e))
+            return False
 
     def work_callback(self, sp, resp):
         Logging.debug("Got ack for message reply")
