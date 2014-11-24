@@ -4,61 +4,63 @@ import time
 import requests
 from spotify import Logging
 
-IMAGE_HOST = "d3rt1990lpmkn.cloudfront.net"
-
 class Tunigo():
 
     def __init__(self, region = "us"):
         self.region = "us" if region is None else region
+        self.locale = self.getLocaleFromRegion(self.region)
         self.root_url = "https://api.tunigo.com/v3/space/"
         Logging.debug("Starting with Tunigo for region: "  + self.region)
 
-    def getFeaturedPlaylists(self):
-      action       = "featured-playlists"
-      fixed_params = "page=0&per_page=50&suppress_response_codes=1&locale=en&product=premium&version=6.31.1&platform=web"
-      date_param   = "dt=" + time.strftime("%Y-%m-%dT%H:%M:%S") #2014-05-29T02%3A01%3A00"
-      region_param = "region=" + self.region
-      full_url = self.root_url + action + '?' + fixed_params + '&' + date_param + '&' + region_param
-      
-      Logging.debug("Tunigo - getFeaturedPlaylists url: " + full_url)
-      r = requests.get(full_url)
-      #Logging.debug("Tunigo - getFeaturedPlaylists response: " + str(r.json()))
-      Logging.debug("Tunigo - getFeaturedPlaylists response OK")
+    def getLocaleFromRegion(self, region):
+        if (region == 'AR'):
+            return 'es'
+        if (region == 'US'):
+            return 'us'
 
-      if r.status_code != 200 or r.headers['content-type'] != 'application/json':
-        return { 'items': [] }.json()
-      return r.json()
+        return region
+
+    def getFeaturedPlaylists(self):
+      url = self.buildUrl("featured-playlists")
+      response = self.doRequest("getFeaturedPlaylists", url)
+      return self.parseResponse(response)
 
     def getTopPlaylists(self):
-      action       = "toplists"
-      fixed_params = "page=0&per_page=50&suppress_response_codes=1&locale=en&product=premium&version=6.31.1&platform=web"
-      date_param   = "dt=" + time.strftime("%Y-%m-%dT%H:%M:%S") #2014-05-29T02%3A01%3A00"
-      region_param = "region=" + self.region
-      full_url = self.root_url + action + '?' + fixed_params + '&' + date_param + '&' + region_param
-      
-      Logging.debug("Tunigo - getTopPlaylists url: " + full_url)
-      r = requests.get(full_url)
-      #Logging.debug("Tunigo - getTopPlaylists response: " + str(r.json()))
-      Logging.debug("Tunigo - getTopPlaylists response OK")
-
-      if r.status_code != 200 or r.headers['content-type'] != 'application/json':
-        return { 'items': [] }.json()
-      return r.json()
+      url = self.buildUrl("toplists")
+      response = self.doRequest("getTopPlaylists", url)
+      return self.parseResponse(response)
 
     def getNewReleases(self):
-      action       = "new-releases"
-      fixed_params = "page=0&per_page=50&suppress_response_codes=1&locale=en&product=premium&version=6.31.1&platform=web"
+      url = self.buildUrl("new-releases")
+      response = self.doRequest("getNewReleases", url)
+      return self.parseResponse(response)
+
+    def getGenres(self):
+      url = self.buildUrl("genres")
+      response = self.doRequest("getGenres", url)
+      return self.parseResponse(response)
+
+    def getPlaylistsByGenre(self, genre_name):
+      url = self.buildUrl(genre_name)
+      response = self.doRequest("getPlaylistsByGenre", url)
+      return self.parseResponse(response)
+
+    def buildUrl(self, action):
+      fixed_params = "page=0&per_page=50&suppress_response_codes=1&product=premium&version=6.31.1&platform=web"
       date_param   = "dt=" + time.strftime("%Y-%m-%dT%H:%M:%S") #2014-05-29T02%3A01%3A00"
       region_param = "region=" + self.region
-      full_url = self.root_url + action + '?' + fixed_params + '&' + date_param + '&' + region_param
-      
-      Logging.debug("Tunigo - getNewReleases url: " + full_url)
-      r = requests.get(full_url)
-      #Logging.debug("Tunigo - getNewReleases response: " + str(r.json()))
-      Logging.debug("Tunigo - getNewReleases response OK")
-      
-      if r.status_code != 200 or r.headers['content-type'] != 'application/json':
+      locale_param = "locale=" + self.locale
+      full_url = self.root_url + action + '?' + fixed_params + '&' + date_param + '&' + region_param + '&' + locale_param
+      return full_url
+
+    def doRequest(self, name, url):
+      Logging.debug("Tunigo - " + name + " url: " + url)
+      response = requests.get(url)
+      Logging.debug("Tunigo - " + name + " response OK")
+      #Logging.debug("Tunigo - getGenres response: " + str(response.json()))
+      return response
+
+    def parseResponse(self, response):
+      if response.status_code != 200 or response.headers['content-type'] != 'application/json':
         return { 'items': [] }.json()
-      return r.json()
-
-
+      return response.json()

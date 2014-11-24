@@ -54,11 +54,11 @@ class SpotifyPlugin(object):
 
     def scheduled_restart(self):
         Log("Starting scheduled restart")
-        
+
         now  = time.time()
         diff = now - Dict['last_restart']
         Log.Debug("Distance in seconds from prev restart is: %s. Difference needed: %s" % (str(diff), str(Dict['schedule_restart_each'])))
-        
+
         # if a restart happened, then we should't do it again
         if diff >= Dict['schedule_restart_each']:
             self.start()
@@ -89,8 +89,8 @@ class SpotifyPlugin(object):
             else:
                 Log.Debug("Start triggered, entering private section")
                 self.start_marker.clear()
-                
-                if self.client:            
+
+                if self.client:
                     self.client.restart(self.username, self.password)
                 else:
                     self.client = SpotifyClient(self.username, self.password)
@@ -113,14 +113,14 @@ class SpotifyPlugin(object):
         if not self.client.is_track_uri_valid(uri):
             Log("Play track callback invoked with invalid URI")
             return
-        
+
         # Process play request one by one to avoid errors
         with self.play_lock:
 
             track_url = self.get_track_url(uri)
-            
+
             # If first request failed, trigger re-connection to spotify
-            retry_num = 0 
+            retry_num = 0
             while not track_url and retry_num < 3:
                 Log.Info('get_track_url failed, re-connecting to spotify...')
                 time.sleep(retry_num*0.5) # Wait some time based on number of failures
@@ -131,7 +131,7 @@ class SpotifyPlugin(object):
             if track_url == False:
                 Log.Error("Play track couldn't be obtained. This is very bad :-(")
                 return None
-            
+
             Dict['play_count'] = Dict['play_count'] + 1
             if Dict['play_count'] >= Dict['play_restart_each'] and not Dict['play_restart_scheduled']:
                 Log.Debug('Scheduling preventive restart (%s plays)' % str(Dict['play_count']))
@@ -139,7 +139,7 @@ class SpotifyPlugin(object):
                 Dict['play_restart_scheduled'] = True
 
             return Redirect(track_url)
-    
+
     def get_track_url(self, track_uri):
         if not self.client.is_track_uri_valid(track_uri):
             return None
@@ -153,28 +153,28 @@ class SpotifyPlugin(object):
             track = self.client.get(track_uri)
             if track:
                 track_url = track.getFileURL(urlOnly=True, retries=1) #self.client.getTrackFileURL(track_uri, retries=1)
-        
+
         return track_url
 
     #
     # TRACK DETAIL
     #
     @check_restart
-    def metadata(self, uri): 
+    def metadata(self, uri):
         """ Get a track metadata """
         Log('metadata(%s)' % repr(uri))
 
         if not self.client.is_track_uri_valid(uri):
             Log("Metadata callback invoked with invalid URI")
             return
-  
+
         # Process metadata request one by one to avoid errors
         with self.metadata_lock:
 
             track_metadata = self.get_track_metadata(uri)
-            
+
             # If first request failed, trigger re-connection to spotify
-            retry_num = 0 
+            retry_num = 0
             while not track_metadata and retry_num < 3:
                 Log.Info('get_track_metadata failed, re-connecting to spotify...')
                 time.sleep(retry_num*0.5) # Wait some time based on number of failures
@@ -224,13 +224,13 @@ class SpotifyPlugin(object):
             return images[160]
         elif images.get(60):
             return images[60]
-        
+
         Log.Info('Unable to select image, available sizes: %s' % images.keys())
         return None
 
     def get_uri_image(self, uri):
         images = None
-        obj = self.client.get(uri)            
+        obj = self.client.get(uri)
         if isinstance(obj, SpotifyArtist):
             images = obj.getPortraits()
         elif isinstance(obj, SpotifyAlbum):
@@ -239,7 +239,7 @@ class SpotifyPlugin(object):
             images = obj.getAlbum().getCovers()
         elif isinstance(obj, SpotifyPlaylist):
             images = obj.getImages()
-        
+
         return self.select_image(images)
 
     @authenticated
@@ -290,7 +290,12 @@ class SpotifyPlugin(object):
                     key=route_path('explore/new_releases'),
                     title=L("MENU_NEW_RELEASES"),
                     thumb=R("icon-explore-newreleases.png")
-                )                
+                ),
+                DirectoryObject(
+                    key=route_path('explore/genres'),
+                    title=L("MENU_GENRES"),
+                    thumb=R("icon-explore-genres.png")
+                )
             ],
         )
 
@@ -307,7 +312,7 @@ class SpotifyPlugin(object):
         stories = self.client.discover()
         for story in stories:
             self.add_story_to_directory(story, oc)
-        return oc        
+        return oc
 
     @authenticated
     @check_restart
@@ -344,7 +349,7 @@ class SpotifyPlugin(object):
                     key=route_path('your_music/starred'),
                     title=L("MENU_STARRED"),
                     thumb=R("icon-starred.png")
-                ),                  
+                ),
                 DirectoryObject(
                     key=route_path('your_music/albums'),
                     title=L("MENU_ALBUMS"),
@@ -354,7 +359,7 @@ class SpotifyPlugin(object):
                     key=route_path('your_music/artists'),
                     title=L("MENU_ARTISTS"),
                     thumb=R("icon-artists.png")
-                ),            
+                ),
             ],
         )
 
@@ -415,7 +420,43 @@ class SpotifyPlugin(object):
             self.add_album_to_directory(album, oc)
 
         return oc
-    
+
+    @authenticated
+    @check_restart
+    def genres(self):
+        Log("genres")
+
+        oc = ObjectContainer(
+            title2=L("MENU_GENRES"),
+            content=ContainerContent.Playlists,
+            view_group=ViewMode.Playlists
+        )
+
+        genres = self.client.get_genres()
+
+        for genre in genres:
+            self.add_genre_to_directory(genre, oc)
+
+        return oc
+
+    @authenticated
+    @check_restart
+    def genre_playlists(self, genre_name):
+        Log("genre playlists")
+
+        oc = ObjectContainer(
+            title2=genre_name,
+            content=ContainerContent.Playlists,
+            view_group=ViewMode.Playlists
+        )
+
+        playlists = self.client.get_playlists_by_genre(genre_name)
+
+        for playlist in playlists:
+            self.add_playlist_to_directory(playlist, oc)
+
+        return oc
+
     #
     # RADIO
     #
@@ -424,9 +465,9 @@ class SpotifyPlugin(object):
     @check_restart
     def radio_stations(self):
         Log('radio stations')
-        
+
         Dict['radio_salt'] = False
-        oc = ObjectContainer(title2=L("MENU_RADIO_STATIONS"))        
+        oc = ObjectContainer(title2=L("MENU_RADIO_STATIONS"))
         stations = self.client.get_radio_stations()
         for station in stations:
             oc.add(PopupDirectoryObject(
@@ -442,7 +483,7 @@ class SpotifyPlugin(object):
         Log('radio genres')
 
         Dict['radio_salt'] = False
-        oc = ObjectContainer(title2=L("MENU_RADIO_GENRES"))        
+        oc = ObjectContainer(title2=L("MENU_RADIO_GENRES"))
         genres = self.client.get_radio_genres()
         for genre in genres:
             oc.add(PopupDirectoryObject(
@@ -485,7 +526,7 @@ class SpotifyPlugin(object):
                     thumb=R("icon-radio-item.png")
                 )
             ],
-        )        
+        )
 
     @authenticated
     @check_restart
@@ -497,7 +538,7 @@ class SpotifyPlugin(object):
 
         if not Dict['radio_salt']:
             Dict['radio_salt'] = radio.generateSalt()
-        
+
         salt = Dict['radio_salt']
         tracks = radio.getTracks(salt=salt, num_tracks=int(num_tracks))
 
@@ -506,7 +547,7 @@ class SpotifyPlugin(object):
             content    = ContainerContent.Tracks,
             view_group = ViewMode.Tracks
         )
-        
+
         for track in tracks:
             self.add_track_to_directory(track, oc)
 
@@ -563,7 +604,7 @@ class SpotifyPlugin(object):
             content=ContainerContent.Albums,
             view_group=ViewMode.Albums
         )
-        
+
         albums = self.client.get_my_albums()
 
         for album in albums:
@@ -581,7 +622,7 @@ class SpotifyPlugin(object):
             content=ContainerContent.Artists,
             view_group=ViewMode.Artists
         )
-        
+
         artists = self.client.get_my_artists()
 
         for artist in artists:
@@ -645,7 +686,7 @@ class SpotifyPlugin(object):
             self.add_album_to_directory(album, oc)
 
         return oc
-    
+
     @authenticated
     @check_restart
     def artist_top_tracks(self, uri):
@@ -653,9 +694,9 @@ class SpotifyPlugin(object):
         :param uri:            The Spotify URI of the artist to browse.
         """
         oc          = None
-        artist      = self.client.get(uri)        
+        artist      = self.client.get(uri)
         top_tracks  = artist.getTracks()
-        
+
         if top_tracks:
             oc = ObjectContainer(
                 title2=artist.getName().decode("utf-8"),
@@ -702,10 +743,10 @@ class SpotifyPlugin(object):
         album = self.client.get(uri)
 
         oc = ObjectContainer(
-            title2=album.getName().decode("utf-8"), 
+            title2=album.getName().decode("utf-8"),
             content=ContainerContent.Artists
         )
-        
+
         oc.add(DirectoryObject(
                     key  = route_path('album/%s/tracks' % uri),
                     title=L("MENU_ALBUM_TRACKS"),
@@ -714,7 +755,7 @@ class SpotifyPlugin(object):
         artists = album.getArtists()
         for artist in artists:
             self.add_artist_to_directory(artist, oc)
-        
+
         oc.add(DirectoryObject(
                     key=route_path('radio/stations/' + uri),
                     title =L("MENU_RADIO"),
@@ -810,7 +851,7 @@ class SpotifyPlugin(object):
                 )
             ],
         )
-    
+
     #
     # Create objects
     #
@@ -827,7 +868,7 @@ class SpotifyPlugin(object):
         track_album     = track.getAlbum(nameOnly=True).decode("utf-8")
         track_artists   = track.getArtists(nameOnly=True).decode("utf-8")
         metadata = TrackMetadata(title, image_url, track_uri, track_duration, track_number, track_album, track_artists)
-                
+
         return self.create_track_object_from_metatada(metadata, index=index)
 
     def create_track_object_from_metatada(self, metadata, index=None):
@@ -865,7 +906,7 @@ class SpotifyPlugin(object):
             duration = metadata.duration,
 
             source_title='Spotify',
-            
+
             art   = R('art-' + art_num + '.png'), #function_path('image.png', uri=metadata.image_url),
             thumb = function_path('image.png', uri=metadata.image_url)
         )
@@ -884,11 +925,11 @@ class SpotifyPlugin(object):
 
         return DirectoryObject(
             key=route_path('album', album.getURI().decode("utf-8")),
-            
+
             title=title + " - " + artist_name,
             tagline=artist_name,
             summary=summary,
-            
+
             art=function_path('image.png', uri=image_url),
             thumb=function_path('image.png', uri=image_url),
         )
@@ -907,7 +948,7 @@ class SpotifyPlugin(object):
         #    art=function_path('image.png', uri=image_url),
         #    thumb=function_path('image.png', uri=image_url),
         #)
-    
+
     def create_playlist_object(self, playlist):
         uri         = urllib.quote_plus(playlist.getURI().encode('utf8')).replace("%3A", ":").decode("utf-8")
         image_url   = self.select_image(playlist.getImages())
@@ -919,11 +960,11 @@ class SpotifyPlugin(object):
 
         return DirectoryObject(
             key=route_path('playlist', uri),
-            
+
             title=title + " - " + artist,
             tagline=artist,
             summary=summary,
-            
+
             art=function_path('image.png', uri=image_url) if image_url != None else R("placeholder-playlist.png"),
             thumb=function_path('image.png', uri=image_url) if image_url != None else R("placeholder-playlist.png")
         )
@@ -931,16 +972,30 @@ class SpotifyPlugin(object):
         #return AlbumObject(
         #    key=route_path('playlist', uri),
         #    rating_key=uri,
-        #    
+        #
         #    title=title,
         #    artist=artist,
         #    summary=summary,
         #
         #    source_title='Spotify',
-        #    
+        #
         #    art=function_path('image.png', uri=image_url) if image_url != None else R("placeholder-playlist.png"),
         #    thumb=function_path('image.png', uri=image_url) if image_url != None else R("placeholder-playlist.png")
         #)
+
+    def create_genre_object(self, genre):
+        uri         = genre.getTemplateName().decode("utf-8")
+        title       = genre.getName().decode("utf-8")
+        image_url   = genre.getIconUrl()
+
+        return DirectoryObject(
+            key=route_path('genre', uri),
+
+            title=title,
+
+            art=function_path('image.png', uri=image_url) if image_url != None else R("placeholder-playlist.png"),
+            thumb=function_path('image.png', uri=image_url) if image_url != None else R("placeholder-playlist.png")
+        )
 
     def create_artist_object(self, artist, custom_summary=None, custom_image_url=None):
         image_url   = self.select_image(artist.getPortraits()) if custom_image_url == None else custom_image_url
@@ -949,10 +1004,10 @@ class SpotifyPlugin(object):
 
         return DirectoryObject(
                     key=route_path('artist', artist.getURI().decode("utf-8")),
-                    
+
                     title=artist_name,
                     summary=summary,
-                    
+
                     art=function_path('image.png', uri=image_url),
                     thumb=function_path('image.png', uri=image_url)
                 )
@@ -1005,6 +1060,9 @@ class SpotifyPlugin(object):
     def add_playlist_to_directory(self, playlist, oc):
         oc.add(self.create_playlist_object(playlist))
 
+    def add_genre_to_directory(self, genre, oc):
+        oc.add(self.create_genre_object(genre))
+
     def add_story_to_directory(self, story, oc):
         content_type = story.getContentType()
         image_url    = self.select_image(story.getImages())
@@ -1015,7 +1073,7 @@ class SpotifyPlugin(object):
             self.add_album_to_directory(item,  oc, custom_summary=story.getDescription(), custom_image_url=image_url)
         elif content_type == 'track':
             self.add_album_to_directory(item.getAlbum(), oc, custom_summary=story.getDescription() + " - " + item.getName(), custom_image_url=image_url)
-        
+
         # Do not include playlists (just like official spotify client does)
         #elif content_type == 'playlist':
         #    self.add_playlist_to_directory(item, oc)

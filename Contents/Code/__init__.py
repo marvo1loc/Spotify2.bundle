@@ -77,6 +77,14 @@ def top_playlists(**kwargs):
 def new_releases(**kwargs):
     return plugin_callback(SpotifyPlugin.new_releases, kwargs)
 
+@route(ROUTEBASE + 'explore/genres')
+def genres(**kwargs):
+    return plugin_callback(SpotifyPlugin.genres, kwargs)
+
+@route(ROUTEBASE + 'genre/{genre_name}')
+def genres(**kwargs):
+    return plugin_callback(SpotifyPlugin.genre_playlists, kwargs)
+
 
 @route(ROUTEBASE + 'radio/stations')
 def radio_stations(**kwargs):

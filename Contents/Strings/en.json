@@ -4,13 +4,14 @@
     "PREF_SORTPLAYLISTS": "Sort the playlists by name",
     "PREF_SHOWALBUMYEAR": "Show album release year",
     "PREF_REGION": "Region (two letter country code)",
-
+      
     "MENU_DISCOVER": "Discover",
     "MENU_EXPLORE": "Explore",
     "MENU_YOUR_MUSIC": "Your Music",
     "MENU_FEATURED_PLAYLISTS": "Featured Playlists",
     "MENU_TOP_PLAYLISTS": "Top Playlists",
     "MENU_NEW_RELEASES": "New Releases",
+    "MENU_GENRES": "Genres",
     "MENU_PLAYLISTS": "Playlists",
     "MENU_SEARCH": "Search",
     "MENU_STARRED": "Starred",

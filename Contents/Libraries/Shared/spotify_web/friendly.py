@@ -95,6 +95,34 @@ class SpotifyMetadataObject(SpotifyObject):
         return self.obj.popularity
 
 
+class SpotifyGenre():
+    def __init__(self, spotify, genre_json):
+        self.id = genre_json["id"]
+        self.name = genre_json["name"]
+        self.templateName = genre_json["templateName"]
+        self.iconUrl = genre_json["iconUrl"]
+        self.playlistUri = genre_json["playlistUri"]
+        self.location = genre_json["location"]
+        self.spotify = spotify
+
+    def getId(self):
+        return self.id
+
+    def getName(self):
+        return self.name
+
+    def getTemplateName(self):
+        return self.templateName
+
+    def getIconUrl(self):
+        return self.iconUrl
+
+    def getPlaylistUri(self):
+        return self.playlistUri
+
+    def getLocation(self):
+        return self.location
+
 class SpotifyTrack(SpotifyMetadataObject):
     uri_type = "track"
     replaced = False
@@ -127,7 +155,7 @@ class SpotifyTrack(SpotifyMetadataObject):
 
     def getDuration(self):
         return self.obj.duration
-    
+
     def getFileURL(self, urlOnly=True, retries=3):
         resp = self.spotify.api.track_url(self.obj, retries=retries)
 
@@ -467,7 +495,7 @@ class SpotifyReasonField():
 class SpotifyReason():
     def __init__(self, spotify, obj):
         self.spotify = spotify
-        self.text    = obj.text        
+        self.text    = obj.text
         self.fields  = []
         i = 0
         for field in obj.fields:
@@ -521,7 +549,7 @@ class SpotifyRadio(object):
     def getTitle(self):
         return self.title
 
-    def getImages(self):        
+    def getImages(self):
         if self.obj != None and self.obj.imageUri != None:
             image_id = ""
             if self.obj.imageUri.startswith('spotify:image:'):
@@ -547,7 +575,7 @@ class SpotifyRadio(object):
     def getTracks(self, salt=None, num_tracks=20):
         if not salt:
             salt = self.generateSalt()
-            
+
         track_uris  = []
         result = self.spotify.api.radio_tracks_request(stationUri=self.getURI(), stationId=self.getId(), salt=salt, num_tracks=num_tracks)
         for track_gid in result.gids:
@@ -656,6 +684,19 @@ class Spotify():
 
         return self.objectFromURI(album_uris, asArray=True)
 
+    def getGenres(self):
+        genres_json = self.tunigo.getGenres()
+
+        genres = []
+        for item_json in genres_json['items']:
+            genres.append(SpotifyGenre(self, item_json['genre']))
+
+        return genres
+
+    def getPlaylistsByGenre(self, genre_name):
+        pl_json = self.tunigo.getPlaylistsByGenre(genre_name)
+        return self.parse_tunigo_playlists(pl_json)
+
     def discover(self):
         stories = []
         result = self.api.discover_request()
@@ -717,13 +758,13 @@ class Spotify():
         with self.global_lock:
             if not self.logged_in():
                 return False
-            
+
             uris = [uris] if type(uris) != list else uris
             if len(uris) == 0:
                 return [] if asArray else None
 
             uri_type = SpotifyUtil.get_uri_type(uris[0])
-            
+
             if not uri_type:
                 return [] if asArray else None
             elif uri_type == "playlist":
@@ -749,10 +790,10 @@ class Spotify():
                 results = []
                 uris = [uri for uri in uris if not SpotifyUtil.is_local(uri)]
                 start  = 0
-                finish = 100            
+                finish = 100
                 uris_to_ask = uris[start:finish]
                 while len(uris_to_ask) > 0:
-                    
+
                     objs = self.api.metadata_request(uris_to_ask)
                     objs = [objs] if type(objs) != list else objs
 
@@ -768,7 +809,7 @@ class Spotify():
                         results.extend([SpotifyAlbum(self, obj=obj) for obj in objs])
                     elif uri_type == "artist":
                         results.extend([SpotifyArtist(self, obj=obj) for obj in objs])
-                
+
                     start  = finish
                     finish = finish + 100
                     uris_to_ask = uris[start:finish]
@@ -781,7 +822,7 @@ class Spotify():
                     results = results[0]
                 elif len(results) == 0:
                     return [] if asArray else None
-            
+
             return results
 
     def is_track_uri_valid(self, track_uri):
@@ -791,7 +832,7 @@ class Spotify():
         playlists = []
         for item_json in pl_json['items']:
             playlist_uri  = item_json['playlist']['uri']
-            
+
             uri_parts = playlist_uri.split(':')
             if len(uri_parts) < 2:
                 continue
@@ -836,7 +877,7 @@ class Spotify():
                 size = 320
             elif size <= 640:
                 size = 640
-            
+
             image_id = SpotifyUtil.gid2id(image_obj.file_id) if must_convert_to_id else image_obj.file_id
             image_url = Spotify.imageFromId(image_id, size)
             if image_url != None:
@@ -845,7 +886,7 @@ class Spotify():
         return images
 
     @staticmethod
-    def imageFromId(image_id, size):        
+    def imageFromId(image_id, size):
         if image_id == "00000000000000000000000000000000":
             image_url = None
         else:

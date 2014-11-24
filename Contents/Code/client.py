@@ -63,16 +63,20 @@ class SpotifyClient(object):
     #
 
     def get_featured_playlists(self):
-        """ Return the featured playlists"""
         return self.spotify.getFeaturedPlaylists()
 
     def get_top_playlists(self):
-        """ Return the top playlists"""
         return self.spotify.getTopPlaylists()
 
     def get_new_releases(self):
-        """ Return the top playlists"""
         return self.spotify.getNewReleases()
+
+    def get_genres(self):
+        return self.spotify.getGenres()
+
+    def get_playlists_by_genre(self, genre_name):
+        return self.spotify.getPlaylistsByGenre(genre_name)
+
 
     #
     # Discover
@@ -98,7 +102,7 @@ class SpotifyClient(object):
             radios = self.spotify.getRadioGenres()
         else:
             radios = self.spotify.getRadioStations()
-        
+
         for radio in radios:
             if radio.getURI() == radio_uri:
                 return radio
