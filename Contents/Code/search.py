@@ -109,78 +109,56 @@ class SpotifySearch(object):
     @staticmethod
     def create_artist(artist):
         image_url = artist.portrait.large if artist.portrait else None
+        title = artist.name.decode("utf-8")
 
         return DirectoryObject(
-            key=route_path('artist', artist.uri),
-            
-            title=artist.name,
-            
+            key=route_path('artist', artist.uri.decode("utf-8")),
+
+            title=title,
+
             art=function_path('image.png', uri=image_url),
             thumb=function_path('image.png', uri=image_url)
         )
 
-        #return ArtistObject(
-        #    key=route_path('artist', artist.uri),
-        #    rating_key=artist.uri,
-        #
-        #    title=artist.name,
-        #    source_title='Spotify',
-        #
-        #    art=function_path('image.png', uri=image_url),
-        #    thumb=function_path('image.png', uri=image_url)
-        #)
-
     @staticmethod
     def create_album(album):
-        title = album.name
-
-        # TODO displayAlbumYear
-        #if Prefs["displayAlbumYear"] and album.getYear() != 0:
-        #    title = "%s (%s)" % (title, album.getYear())
+        image_url = album.cover_large
+        title = album.name.decode("utf-8")
 
         return DirectoryObject(
-            key=route_path('album', album.uri),
-            
-            title=title,
-            
-            art=function_path('image.png', uri=album.cover_large),
-            thumb=function_path('image.png', uri=album.cover_large),
-        )
+            key=route_path('album', album.uri.decode("utf-8")),
 
-        #return AlbumObject(
-        #    key=route_path('album', album.uri),
-        #    rating_key=album.uri,
-        #
-        #    title=title,
-        #    # TODO artist=album.getArtists(nameOnly=True),
-        #
-        #    # TODO track_count=album.getNumTracks(),
-        #    source_title='Spotify',
-        #
-        #    art=function_path('image.png', uri=album.cover_large),
-        #    thumb=function_path('image.png', uri=album.cover_large),
-        #)
+            title=title,
+
+            art=function_path('image.png', uri=image_url),
+            thumb=function_path('image.png', uri=image_url)
+        )
 
     @staticmethod
     def create_track(track):
+        uri = track.uri
+        rating_key = uri
+
         return TrackObject(
             items=[
                 MediaObject(
-                    parts=[PartObject(key=function_path('play', uri=track.uri, ext='mp3'))],
+                    parts=[PartObject(key=route_path('play/%s' % uri))],
+                    duration=int(track.length),
                     container=Container.MP3,
-                    audio_codec=AudioCodec.MP3
+                    audio_codec=AudioCodec.MP3,
+                    audio_channels = 2
                 )
             ],
 
-            key=track.title,
-            rating_key=track.title,
+            key = route_path('metadata', uri),
+            rating_key = rating_key,
 
-            title=track.title,
-            album=track.album.name,
-            # TODO artist=track.getArtists(nameOnly=True),
+            title  = track.title,
+            album  = track.album.name,
+            #artist = metadata.artists, # TODO
 
-            index=int(track.number),
-            duration=int(track.length),
+            index    = int(track.number),
+            duration = int(track.length),
 
             source_title='Spotify',
 
