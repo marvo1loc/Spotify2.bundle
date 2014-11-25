@@ -102,7 +102,6 @@ class SpotifyGenre():
         self.templateName = genre_json["templateName"]
         self.iconUrl = genre_json["iconUrl"]
         self.playlistUri = genre_json["playlistUri"]
-        self.location = genre_json["location"]
         self.spotify = spotify
 
     def getId(self):
@@ -119,9 +118,6 @@ class SpotifyGenre():
 
     def getPlaylistUri(self):
         return self.playlistUri
-
-    def getLocation(self):
-        return self.location
 
 class SpotifyTrack(SpotifyMetadataObject):
     uri_type = "track"
@@ -797,11 +793,11 @@ class Spotify():
                     objs = self.api.metadata_request(uris_to_ask)
                     objs = [objs] if type(objs) != list else objs
 
-                    failed_requests = len([obj for obj in objs if False == obj])
+                    failed_requests = len([obj for obj in objs if obj == False or obj == None])
                     if failed_requests > 0:
                         print failed_requests, "metadata requests failed"
 
-                    objs = [obj for obj in objs if False != obj]
+                    objs = [obj for obj in objs if obj != False and obj != None]
                     if uri_type == "track":
                         tracks = [SpotifyTrack(self, obj=obj) for obj in objs]
                         results.extend([track for track in tracks if False == self.AUTOREPLACE_TRACKS or track.isAvailable()])

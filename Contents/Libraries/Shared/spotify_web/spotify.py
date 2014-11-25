@@ -95,8 +95,11 @@ class Logging():
 class WrapAsync():
     timeout = 30
 
-    def __init__(self, callback, func, *args):
+    def __init__(self, timeout, callback, func, *args):
         self.marker = Event()
+
+        if timeout is not None:
+            self.timeout = timeout
 
         if callback is None:
             callback = self.callback
@@ -112,7 +115,7 @@ class WrapAsync():
         self.data = args
         self.marker.set()
 
-    def get_data(self):        
+    def get_data(self):
         try:
             if not self.could_send:
                 return False
@@ -230,7 +233,7 @@ class SpotifyAPI():
         self.country = None
         self.settings = None
         self.seq = 0
-        self.cmd_callbacks = {}        
+        self.cmd_callbacks = {}
         self.is_logged_in = False
 
     def auth(self, username, password):
@@ -239,7 +242,6 @@ class SpotifyAPI():
             return False
 
         headers = {
-            #"User-Agent": "node-spotify-web in python (Chrome/13.37 compatible-ish)",
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.63 Safari/537.36"
         }
 
@@ -297,7 +299,7 @@ class SpotifyAPI():
             "landingURL": landingURL,
             "cf":"",
         }
-        
+
         resp = session.post("https://" + self.auth_server + "/xhr/json/auth.php", data=login_payload, headers=headers)
         resp_json = resp.json()
 
@@ -384,8 +386,8 @@ class SpotifyAPI():
             return False
 
         args = ["mp3160", SpotifyUtil.gid2id(track.gid)]
-        return self.wrap_request("sp/track_uri", args, callback, retries=retries)
-       
+        return self.wrap_request("sp/track_uri", args, callback, retries=retries, timeout=2)
+
     def parse_metadata(self, sp, resp, callback_data):
         header = mercury_pb2.MercuryReply()
         header.ParseFromString(base64.decodestring(resp[0]))
@@ -453,7 +455,7 @@ class SpotifyAPI():
 
     def is_track_available(self, track, country):
         try:
-            track_uri = SpotifyUtil.gid2uri('track', track.gid)        
+            track_uri = SpotifyUtil.gid2uri('track', track.gid)
             if not SpotifyUtil.is_track_uri_valid(track_uri):
                 return False
 
@@ -525,7 +527,7 @@ class SpotifyAPI():
             #        return self.recurse_alternatives(subtrack, attempted)
             #return False
 
-    
+
     def generate_multiget_args(self, metadata_type, requests):
         args = [0]
 
@@ -544,10 +546,10 @@ class SpotifyAPI():
 
         return args
 
-    def wrap_request(self, command, args, callback, int_callback=None, retries=3):
+    def wrap_request(self, command, args, callback, int_callback=None, retries=3, timeout=None):
         if not callback:
             for attempt in range(0, retries):
-                data = WrapAsync(int_callback, self.send_command, command, args).get_data()
+                data = WrapAsync(timeout, int_callback, self.send_command, command, args).get_data()
                 if data:
                     break
             return data
@@ -717,11 +719,11 @@ class SpotifyAPI():
 
     def playlist_request(self, uri, fromnum=0, num=100, callback=False):
         playlist_uri = urllib.quote_plus(uri.encode('utf8')).replace("%3A", "/").decode("utf-8")[8:]
-        
+
         mercury_request = mercury_pb2.MercuryRequest()
         mercury_request.body = "GET"
         mercury_request.uri = "hm://playlist/" + playlist_uri + "?from=" + str(fromnum) + "&length=" + str(num)
-        
+
         req = base64.encodestring(mercury_request.SerializeToString())
         args = [0, req]
 
@@ -736,11 +738,11 @@ class SpotifyAPI():
             extras = "?includefollowedartists=true"
         else:
             return []
-        
+
         mercury_request = mercury_pb2.MercuryRequest()
         mercury_request.body = "GET"
         mercury_request.uri = "hm://collection-web/v1/" + self.username + "/" + action + extras
-                
+
         req = base64.encodestring(mercury_request.SerializeToString())
         args = [0, req]
 
@@ -951,13 +953,13 @@ class SpotifyAPI():
             return False
 
         msg_enc = json.dumps(msg, separators=(',', ':'))
-        Logging.debug("sent " + msg_enc)        
+        Logging.debug("sent " + msg_enc)
         try:
             with self.ws_lock:
                 self.ws.send(msg_enc)
         except SSLError:
             Logging.notice("SSL error, attempting to continue")
-        
+
         return True
 
     def recv_packet(self, msg):
@@ -1010,13 +1012,13 @@ class SpotifyAPI():
         rest_ping = ping.replace(" ","-")
         pong = "undefined 0"
         Logging.debug("Obtaining pong for ping [%s]" % rest_ping)
-        try:            
+        try:
             r = requests.get("http://ping-pong.spotify.nodestuff.net/%s" % rest_ping)
             if r.status_code == 200:
                 result = r.json()
                 if result['status'] == 100:
                     pong = result['pong'].replace("-"," ")
-            
+
             Logging.debug('received flash ping %s, sending pong: %s' % (ping, pong))
             return self.send_command('sp/pong_flash2', [pong])
         except Exception, e:
@@ -1096,7 +1098,7 @@ class SpotifyAPI():
                             return False
                         self.username = username
                         self.password = password
-                    
+
                     Logging.notice("Connecting to "+self.settings["wss"])
                     with self.ws_lock:
                         self.ws = SpotifyClient(self.settings["wss"])
@@ -1129,7 +1131,7 @@ class SpotifyAPI():
         can_shutdown = self.shutdown_marker.acquire(blocking=False)
         try:
             # If there is a shutdown in process, just wait until it finishes, but don't raise another one
-            if not can_shutdown: 
+            if not can_shutdown:
                 self.shutdown_marker.acquire()
             else:
                 self.stop_heartbeat = True
@@ -1148,7 +1150,7 @@ class SpotifyAPI():
                 try:
                     Logging.debug("Disconnecting...")
                     self.shutdown()
-                   
+
                     Logging.debug("Restarting...")
                     self.start()
 
@@ -1160,7 +1162,7 @@ class SpotifyAPI():
                     self.disconnecting = False
         finally:
             self.reconnect_marker.release()
-        
+
         return self.is_logged_in
 
     def disconnect(self):
