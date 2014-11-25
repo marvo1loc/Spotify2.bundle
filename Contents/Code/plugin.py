@@ -26,9 +26,9 @@ class SpotifyPlugin(object):
         Dict['play_count']             = 0
         Dict['last_restart']           = 0
         Dict['play_restart_scheduled'] = False
-        Dict['schedule_restart_each']  = 5*60   # restart each  X minutes
-        Dict['play_restart_each']      = 2      # restart each  X plays
-        Dict['play_restart_after']     = 2      # restart after X seconds when play count has been reached
+        Dict['schedule_restart_each']  = 5*60    # restart each  X minutes
+        Dict['play_restart_each']      = 2       # restart each  X plays
+        Dict['play_restart_after']     = 5       # restart after X seconds when play count has been reached
         Dict['radio_salt']             = False   # Saves last radio salt so multiple queries return the same radio track list
 
         self.start()
@@ -129,8 +129,9 @@ class SpotifyPlugin(object):
                 retry_num = retry_num + 1
 
             if track_url == False:
+                # Send an empty and short mp3 so player do not fail and we can go on listening next song
                 Log.Error("Play track couldn't be obtained. This is very bad :-(")
-                return None
+                return Redirect('http://www.xamuel.com/blank-mp3-files/2sec.mp3')
 
             Dict['play_count'] = Dict['play_count'] + 1
             if Dict['play_count'] >= Dict['play_restart_each'] and not Dict['play_restart_scheduled']:
@@ -182,13 +183,14 @@ class SpotifyPlugin(object):
                     track_metadata = self.get_track_metadata(uri)
                 retry_num = retry_num + 1
 
+            track_object = None
+            oc = ObjectContainer()
             if track_metadata:
                 track_object = self.create_track_object_from_metatada(track_metadata)
-                oc = ObjectContainer()
-                oc.add(track_object)
-                return oc
             else:
-                return ObjectContainer()
+                track_object = self.create_track_object_empty(uri)
+            oc.add(track_object)
+            return oc
 
     def get_track_metadata(self, track_uri):
         if not self.client.is_track_uri_valid(track_uri):
@@ -855,7 +857,7 @@ class SpotifyPlugin(object):
     #
     # Create objects
     #
-    def create_track_object(self, track, index=None):
+    def create_track_object_from_track(self, track, index=None):
         if not track:
             return None
 
@@ -874,8 +876,14 @@ class SpotifyPlugin(object):
     def create_track_object_from_metatada(self, metadata, index=None):
         if not metadata:
             return None
+        return self.create_track_object(metadata.uri, metadata.duration, metadata.title, metadata.album, metadata.artists, metadata.number, metadata.image_url, index)
 
-        uri = metadata.uri
+    def create_track_object_empty(self, uri):
+        if not uri:
+            return None
+        return self.create_track_object(uri, -1, "", "", "", 0, None)
+
+    def create_track_object(self, uri, duration, title, album, artists, track_number, image_url, index=None):
         rating_key = uri
         if index is not None:
             rating_key = '%s::%s' % (uri, index)
@@ -886,31 +894,27 @@ class SpotifyPlugin(object):
             items=[
                 MediaObject(
                     parts=[PartObject(key=route_path('play/%s' % uri))],
-                    #parts=[PartObject(key=HTTPLiveStreamURL(Callback(self.play, uri=uri, ext='mp3')))],
-                    #parts = [PartObject(key = Callback(self.play, uri=uri, ext='mp3'))],
-                    duration=metadata.duration,
-                    container=Container.MP3,
-                    audio_codec=AudioCodec.MP3,
-                    audio_channels = 2
+                    duration=duration,
+                    container=Container.MP3, audio_codec=AudioCodec.MP3, audio_channels = 2
                 )
             ],
 
             key = route_path('metadata', uri),
             rating_key = rating_key,
 
-            title  = metadata.title,
-            album  = metadata.album,
-            artist = metadata.artists,
+            title  = title,
+            album  = album,
+            artist = artists,
 
-            index    = index if index != None else metadata.number,
-            duration = metadata.duration,
+            index    = index if index != None else track_number,
+            duration = duration,
 
             source_title='Spotify',
-
-            art   = R('art-' + art_num + '.png'), #function_path('image.png', uri=metadata.image_url),
-            thumb = function_path('image.png', uri=metadata.image_url)
+            art   = R('art-' + art_num + '.png'),
+            thumb = function_path('image.png', uri=image_url)
         )
-        Log.Debug('New track object for metadata: --|%s|%s|%s|%s|%s|%s|--' % (metadata.image_url, metadata.uri, str(metadata.duration), str(metadata.number), metadata.album, metadata.artists))
+
+        Log.Debug('New track object for metadata: --|%s|%s|%s|%s|%s|%s|--' % (image_url, uri, str(duration), str(track_number), album, artists))
 
         return track_obj
 
@@ -1046,7 +1050,7 @@ class SpotifyPlugin(object):
             Log("Ignoring unplayable track: %s, invalid uri: %s" % (track.getName(), track_uri))
             return
 
-        oc.add(self.create_track_object(track, index=index))
+        oc.add(self.create_track_object_from_track(track, index=index))
 
     def add_album_to_directory(self, album, oc, custom_summary=None, custom_image_url=None):
         if not self.client.is_album_playable(album):
