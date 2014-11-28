@@ -190,7 +190,7 @@ class SpotifyPlugin(object):
         if not track:
             return None
 
-        track_uri       = track.getURI().decode("utf-8")
+        #track_uri       = track.getURI().decode("utf-8")
         title           = track.getName().decode("utf-8")
         image_url       = self.select_image(track.getAlbumCovers())
         track_duration  = int(track.getDuration())
