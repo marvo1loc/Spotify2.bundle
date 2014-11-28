@@ -46,7 +46,7 @@ class Tunigo():
       return self.parseResponse(response)
 
     def buildUrl(self, action):
-      fixed_params = "page=0&per_page=50&suppress_response_codes=1&product=premium&version=6.31.1&platform=web"
+      fixed_params = "page=0&per_page=50&product=premium&version=6.31.1&platform=web"
       date_param   = "dt=" + time.strftime("%Y-%m-%dT%H:%M:%S") #2014-05-29T02%3A01%3A00"
       region_param = "region=" + self.region
       locale_param = "locale=" + self.locale
@@ -56,11 +56,12 @@ class Tunigo():
     def doRequest(self, name, url):
       Logging.debug("Tunigo - " + name + " url: " + url)
       response = requests.get(url)
-      Logging.debug("Tunigo - " + name + " response OK")
-      #Logging.debug("Tunigo - getGenres response: " + str(response.json()))
+      #Logging.debug("Tunigo - " + name + " response OK")
+      #Logging.debug("Tunigo - " + name + " response: " + str(response.json()))
       return response
 
     def parseResponse(self, response):
-      if response.status_code != 200 or response.headers['content-type'] != 'application/json':
-        return { 'items': [] }.json()
+      if response.status_code != 200:
+        return { 'items': [] }
+
       return response.json()

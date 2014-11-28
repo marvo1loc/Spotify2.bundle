@@ -661,37 +661,19 @@ class Spotify():
         return SpotifyToplist(self, toplist_content_type, "region", None, region)
 
     def getFeaturedPlaylists(self):
-        try:
-            pl_json = self.tunigo.getFeaturedPlaylists()
-            return self.parse_tunigo_playlists(pl_json)
-        except Exception, e:
-            print "ERROR: " + str(e)
+        return self.parse_tunigo_playlists(self.tunigo.getFeaturedPlaylists())
 
     def getTopPlaylists(self):
-        pl_json = self.tunigo.getTopPlaylists()
-        return self.parse_tunigo_playlists(pl_json)
+        return self.parse_tunigo_playlists(self.tunigo.getTopPlaylists())
 
     def getNewReleases(self):
-        al_json = self.tunigo.getNewReleases()
-
-        album_uris  = []
-        for item_json in al_json['items']:
-            album_uris.append(item_json['release']['uri'])
-
-        return self.objectFromURI(album_uris, asArray=True)
+        return self.parse_tunigo_albums(self.tunigo.getNewReleases())
 
     def getGenres(self):
-        genres_json = self.tunigo.getGenres()
-
-        genres = []
-        for item_json in genres_json['items']:
-            genres.append(SpotifyGenre(self, item_json['genre']))
-
-        return genres
+        return self.parse_tunigo_genres(self.tunigo.getGenres())
 
     def getPlaylistsByGenre(self, genre_name):
-        pl_json = self.tunigo.getPlaylistsByGenre(genre_name)
-        return self.parse_tunigo_playlists(pl_json)
+        return self.parse_tunigo_playlists(self.tunigo.getPlaylistsByGenre(genre_name))
 
     def discover(self):
         stories = []
@@ -826,20 +808,51 @@ class Spotify():
 
     def parse_tunigo_playlists(self, pl_json):
         playlists = []
-        for item_json in pl_json['items']:
-            playlist_uri  = item_json['playlist']['uri']
+        try:
 
-            uri_parts = playlist_uri.split(':')
-            if len(uri_parts) < 2:
-                continue
+            for item_json in pl_json['items']:
+                playlist_uri  = item_json['playlist']['uri']
 
-            # TODO support playlist folders properly
-            if uri_parts[1] in ['start-group', 'end-group']:
-                continue
+                uri_parts = playlist_uri.split(':')
+                if len(uri_parts) < 2:
+                    continue
 
-            playlists.append(playlist_uri)
+                # TODO support playlist folders properly
+                if uri_parts[1] in ['start-group', 'end-group']:
+                    continue
 
-        return self.objectFromURI(playlists, asArray=True)
+                playlists.append(playlist_uri)
+
+            return self.objectFromURI(playlists, asArray=True)
+
+        except Exception, e:
+            Logging.debug("Tunigo - parse_tunigo_playlists error: " + str(e))
+            return playlists
+
+    def parse_tunigo_albums(self, al_json):
+        albums = []
+        try:
+
+            for item_json in al_json['items']:
+                albums.append(item_json['release']['uri'])
+
+            return self.objectFromURI(albums, asArray=True)
+
+        except Exception, e:
+            Logging.debug("Tunigo - parse_tunigo_albums error: " + str(e))
+            return albums
+
+    def parse_tunigo_genres(self, genres_json):
+        genres = []
+        try:
+
+            for item_json in genres_json['items']:
+                genres.append(SpotifyGenre(self, item_json['genre']))
+
+        except Exception, e:
+            Logging.debug("Tunigo - parse_tunigo_genres error: " + str(e))
+
+        return genres
 
     @staticmethod
     def doWorkerQueue(work_function, args, worker_thread_count=5):
