@@ -242,6 +242,7 @@ class SpotifyAPI():
             return False
 
         headers = {
+            "Origin": "https://play.spotify.com",
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.63 Safari/537.36"
         }
 
@@ -1101,7 +1102,11 @@ class SpotifyAPI():
 
                     Logging.notice("Connecting to "+self.settings["wss"])
                     with self.ws_lock:
-                        self.ws = SpotifyClient(self.settings["wss"])
+                        headers = [
+                            ["Origin", "https://play.spotify.com"],
+                            ["User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.63 Safari/537.36"]
+                        ]
+                        self.ws = SpotifyClient(url=self.settings["wss"], headers=headers)
                         self.ws.set_api(self)
                         self.ws.daemon = True
                         self.ws.connect()
