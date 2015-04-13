@@ -678,8 +678,14 @@ class Spotify():
     def discover(self):
         stories = []
         result = self.api.discover_request()
+
+        n = 0
         for story in result.stories:
             stories.append(SpotifyStory(self, story))
+            n = n + 1            
+            if n >= 50:
+                break 
+
         return stories
 
     def getRadioStations(self):
