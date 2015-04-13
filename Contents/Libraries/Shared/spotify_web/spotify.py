@@ -8,6 +8,7 @@ import execjs
 import urllib
 from ssl import SSLError
 from threading import Thread, Event, RLock, Semaphore
+import calendar
 import time
 from random import randint
 import uuid
@@ -614,12 +615,22 @@ class SpotifyAPI():
         return self.wrap_request("sp/hm_b64", args, callback, self.parse_toplist)
 
     def discover_request(self, callback=False):
-        mercury_request = mercury_pb2.MercuryRequest()
+        story_request = bartender_pb2.StoryRequest()
+        story_request.country = self.country;
+        story_request.language = "en"
+        story_request.device = "web"
+        story_request.version = 5
+        #story_request.fallback_artist = []
+        #story_request.FallbackArtistType = []
+        story_request.localtime = calendar.timegm(time.gmtime());
+        req_args = base64.encodestring(story_request.SerializeToString())
+
+        mercury_request      = mercury_pb2.MercuryRequest()
         mercury_request.body = "GET"
-        mercury_request.uri = "hm://bartender/stories/skip/0/take/50"
+        mercury_request.uri = "hm://bartender/stories/skip/0/take/100"
         req = base64.encodestring(mercury_request.SerializeToString())
 
-        args = [0, req]
+        args = [0, req, req_args]
         return self.wrap_request("sp/hm_b64", args, callback, self.parse_discover)
 
     def parse_discover(self, sp, resp, callback_data):
