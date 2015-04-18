@@ -9,7 +9,7 @@ class Tunigo():
     def __init__(self, region = "us"):
         self.region = "us" if region is None else region
         self.locale = self.getLocaleFromRegion(self.region)
-        self.root_url = "https://api.tunigo.com/v3/space/"
+        self.root_url = "http://api.tunigo.com/v3/space/"
         Logging.debug("Starting with Tunigo for region: "  + self.region)
 
     def getLocaleFromRegion(self, region):
