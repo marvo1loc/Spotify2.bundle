@@ -9,6 +9,7 @@ from threading import RLock, Event, Semaphore
 import locale
 import requests
 import urllib
+import urllib2
 import time
 from random import randint
 
@@ -947,9 +948,9 @@ class SpotifyPlugin(object):
         #)
 
     def create_playlist_object(self, playlist):
-        uri         = urllib.quote_plus(playlist.getURI().encode('utf8')).replace("%3A", ":").decode("utf-8")
+        uri         = urllib2.quote(playlist.getURI()) #urllib.quote_plus(playlist.getURI().encode('utf8')).replace("%3A", ":").decode("utf-8")
         image_url   = self.select_image(playlist.getImages())
-        artist      = playlist.getUsername().decode("utf-8")
+        artist      = playlist.getUsername().replace("Ã±", "ñ")
         title       = playlist.getName().decode("utf-8")
         summary     = ''
         if playlist.getDescription() != None and len(playlist.getDescription()) > 0:

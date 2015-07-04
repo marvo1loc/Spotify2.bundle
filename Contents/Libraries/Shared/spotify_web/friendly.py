@@ -9,6 +9,7 @@ from tunigoapi import Tunigo
 import uuid
 from random import randint
 
+import urllib2
 # from spotify_web.proto import mercury_pb2, metadata_pb2
 
 
@@ -322,7 +323,7 @@ class SpotifyPlaylist(SpotifyObject):
         return self.uri
 
     def getUsername(self):
-        username = self.getURI().replace("spotify:user:", "")
+        username = urllib2.unquote(self.getURI().replace("spotify:user:", "")).decode("utf8")
         return username[0:username.index(":")]
 
     def getName(self):
@@ -607,7 +608,10 @@ class Spotify():
         self.api.disconnect()
 
     def restart(self, username, password):
-        return self.api.reconnect(username, password)
+        result = self.api.reconnect(username, password)
+        if result and self.api.is_logged_in:
+            self.tunigo = Tunigo(region=self.api.country)
+        return result
 
     def shutdown(self):
         self.api.shutdown()

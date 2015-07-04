@@ -730,7 +730,7 @@ class SpotifyAPI():
         return self.wrap_request("sp/hm_b64", args, callback, self.parse_playlist)
 
     def playlist_request(self, uri, fromnum=0, num=100, callback=False):
-        playlist_uri = urllib.quote_plus(uri.encode('utf8')).replace("%3A", "/").decode("utf-8")[8:]
+        playlist_uri = uri.replace(":", "/")[8:] #urllib.quote_plus(uri.encode('utf8')).replace("%25", "%").replace("%3A", "/").decode("utf-8")[8:]
 
         mercury_request = mercury_pb2.MercuryRequest()
         mercury_request.body = "GET"
