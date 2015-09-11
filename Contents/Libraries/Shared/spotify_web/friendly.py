@@ -9,7 +9,7 @@ from tunigoapi import Tunigo
 import uuid
 from random import randint
 
-import urllib2
+import urllib
 # from spotify_web.proto import mercury_pb2, metadata_pb2
 
 
@@ -102,7 +102,7 @@ class SpotifyGenre():
         self.name = genre_json["name"]
         self.templateName = genre_json["templateName"]
         self.iconUrl = genre_json["iconUrl"]
-        self.playlistUri = genre_json["playlistUri"]
+        self.playlistUri = genre_json.get("playlistUri")
         self.spotify = spotify
 
     def getId(self):
@@ -323,8 +323,8 @@ class SpotifyPlaylist(SpotifyObject):
         return self.uri
 
     def getUsername(self):
-        username = urllib2.unquote(self.getURI().replace("spotify:user:", "")).decode("utf8")
-        return username[0:username.index(":")]
+        username = urllib.unquote(self.getURI().encode('utf8'))
+        return username[username.rfind("user:")+5:username.rfind(':playlist')]
 
     def getName(self):
         return "Starred" if self.getID() == "starred" else self.obj.attributes.name

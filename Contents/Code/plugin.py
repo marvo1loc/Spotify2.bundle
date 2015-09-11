@@ -113,6 +113,8 @@ class SpotifyPlugin(object):
     def play(self, uri):
         Log('play(%s)' % repr(uri))
 
+        uri = urllib.quote(uri.encode("utf8")).replace("%3A", ":").decode("utf8")
+
         track_url = None
         if not self.client.is_track_uri_valid(uri):
             Log("Play track callback invoked with invalid URI (%s). This is very bad :-(" % uri)
@@ -160,6 +162,8 @@ class SpotifyPlugin(object):
     @check_restart
     def metadata(self, uri):
         Log('metadata(%s)' % repr(uri))
+
+        uri = urllib.quote(uri.encode("utf8")).replace("%3A", ":").decode("utf8")
 
         oc = ObjectContainer()
         track_object = None
@@ -243,6 +247,8 @@ class SpotifyPlugin(object):
             return Redirect(R('placeholder-artist.png'))
 
         Log.Debug('Getting image for: %s' % uri)
+
+        uri = urllib.quote(uri.encode("utf8")).replace("%3A", ":").decode("utf8")
 
         if uri.startswith('spotify:'):
             # Fetch object for spotify URI and select image
@@ -497,6 +503,8 @@ class SpotifyPlugin(object):
     def radio_track_num(self, uri):
         Log('radio track num')
 
+        uri = urllib.quote(uri.encode("utf8")).replace("%3A", ":").decode("utf8")
+
         return ObjectContainer(
             title2=L("MENU_RADIO_TRACK_NUM"),
             objects=[
@@ -532,6 +540,8 @@ class SpotifyPlugin(object):
     @check_restart
     def radio_tracks(self, uri, num_tracks):
         Log('radio tracks')
+
+        uri = urllib.quote(uri.encode("utf8")).replace("%3A", ":").decode("utf8")
 
         oc     = None
         radio  = self.client.get_radio(uri)
@@ -638,6 +648,8 @@ class SpotifyPlugin(object):
     def artist(self, uri):
         Log("artist")
 
+        uri = urllib.quote(uri.encode("utf8")).replace("%3A", ":").decode("utf8")
+
         artist = self.client.get(uri)
         return ObjectContainer(
             title2=artist.getName().decode("utf-8"),
@@ -671,6 +683,8 @@ class SpotifyPlugin(object):
     def artist_albums(self, uri):
         Log("artist_albums")
 
+        uri = urllib.quote(uri.encode("utf8")).replace("%3A", ":").decode("utf8")
+
         artist = self.client.get(uri)
 
         oc = ObjectContainer(
@@ -687,6 +701,8 @@ class SpotifyPlugin(object):
     @check_restart
     def artist_top_tracks(self, uri):
         Log("artist_top_tracks")
+
+        uri = urllib.quote(uri.encode("utf8")).replace("%3A", ":").decode("utf8")
 
         oc          = None
         artist      = self.client.get(uri)
@@ -712,6 +728,8 @@ class SpotifyPlugin(object):
     def artist_related(self, uri):
         Log("artist_related")
 
+        uri = urllib.quote(uri.encode("utf8")).replace("%3A", ":").decode("utf8")
+
         artist = self.client.get(uri)
 
         oc = ObjectContainer(
@@ -732,6 +750,8 @@ class SpotifyPlugin(object):
     @check_restart
     def album(self, uri):
         Log("album")
+
+        uri = urllib.quote(uri.encode("utf8")).replace("%3A", ":").decode("utf8")
 
         album = self.client.get(uri)
 
@@ -761,6 +781,8 @@ class SpotifyPlugin(object):
     def album_tracks(self, uri):
         Log("album_tracks")
 
+        uri = urllib.quote(uri.encode("utf8")).replace("%3A", ":").decode("utf8")
+
         album = self.client.get(uri)
 
         oc = ObjectContainer(
@@ -783,8 +805,9 @@ class SpotifyPlugin(object):
     def playlist(self, uri):
         Log("playlist")
 
+        uri = urllib.quote(uri.encode("utf8")).replace("%3A", ":").decode("utf8")
+        
         pl = self.client.get(uri)
-
         if pl is None:
             # Unable to find playlist
             return MessageContainer(
@@ -856,7 +879,7 @@ class SpotifyPlugin(object):
             return None
 
         # Get metadata info
-        track_uri       = track.getURI().decode("utf-8")
+        track_uri       = track.getURI()
         title           = track.getName().decode("utf-8")
         image_url       = self.select_image(track.getAlbumCovers())
         track_duration  = int(track.getDuration()) - 500
@@ -922,7 +945,7 @@ class SpotifyPlugin(object):
         image_url   = self.select_image(album.getCovers()) if custom_image_url == None else custom_image_url
 
         return DirectoryObject(
-            key=route_path('album', album.getURI().decode("utf-8")),
+            key=route_path('album', album.getURI()),
 
             title=title + " - " + artist_name,
             tagline=artist_name,
@@ -948,9 +971,9 @@ class SpotifyPlugin(object):
         #)
 
     def create_playlist_object(self, playlist):
-        uri         = urllib2.quote(playlist.getURI()) #urllib.quote_plus(playlist.getURI().encode('utf8')).replace("%3A", ":").decode("utf-8")
+        uri         = playlist.getURI()
         image_url   = self.select_image(playlist.getImages())
-        artist      = playlist.getUsername().replace("Ã±", "ñ")
+        artist      = playlist.getUsername().decode('utf8')
         title       = playlist.getName().decode("utf-8")
         summary     = ''
         if playlist.getDescription() != None and len(playlist.getDescription()) > 0:
@@ -982,7 +1005,7 @@ class SpotifyPlugin(object):
         #)
 
     def create_genre_object(self, genre):
-        uri         = genre.getTemplateName().decode("utf-8")
+        uri         = genre.getTemplateName()
         title       = genre.getName().decode("utf-8")
         image_url   = genre.getIconUrl()
 
@@ -1001,7 +1024,7 @@ class SpotifyPlugin(object):
         summary     = '' if custom_summary == None else custom_summary.decode('utf-8')
 
         return DirectoryObject(
-                    key=route_path('artist', artist.getURI().decode("utf-8")),
+                    key=route_path('artist', artist.getURI()),
 
                     title=artist_name,
                     summary=summary,

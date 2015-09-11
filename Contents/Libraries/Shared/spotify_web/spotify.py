@@ -5,7 +5,6 @@ import operator
 import binascii
 import base64
 import execjs
-import urllib
 from ssl import SSLError
 from threading import Thread, Event, RLock, Semaphore
 import calendar
@@ -730,8 +729,8 @@ class SpotifyAPI():
         return self.wrap_request("sp/hm_b64", args, callback, self.parse_playlist)
 
     def playlist_request(self, uri, fromnum=0, num=100, callback=False):
-        playlist_uri = uri.replace(":", "/")[8:] #urllib.quote_plus(uri.encode('utf8')).replace("%25", "%").replace("%3A", "/").decode("utf-8")[8:]
-
+        playlist_uri = uri.replace(":", "/")[8:] 
+        
         mercury_request = mercury_pb2.MercuryRequest()
         mercury_request.body = "GET"
         mercury_request.uri = "hm://playlist/" + playlist_uri + "?from=" + str(fromnum) + "&length=" + str(num)
